@@ -1,0 +1,40 @@
+package httperror
+
+import (
+	"errors"
+	"net/http"
+
+	"{{ .ModulePath }}/internal/pkg/apperror"
+	"{{ .ModulePath }}/internal/pkg/response"
+)
+
+func Write(w http.ResponseWriter, err error) {
+	status, body := Map(err)
+	response.JSON(w, status, body)
+}
+
+func Map(err error) (int, response.Body) {
+	var appErr apperror.Error
+	if errors.As(err, &appErr) {
+		return statusForCode(appErr.Code), response.Error(appErr.Code, appErr.Message)
+	}
+
+	return http.StatusInternalServerError, response.Error("INTERNAL_ERROR", "internal server error")
+}
+
+func statusForCode(code string) int {
+	switch code {
+	case "VALIDATION_ERROR", "INVALID_ARGUMENT":
+		return http.StatusUnprocessableEntity
+	case "UNAUTHORIZED":
+		return http.StatusUnauthorized
+	case "FORBIDDEN":
+		return http.StatusForbidden
+	case "NOT_FOUND":
+		return http.StatusNotFound
+	case "CONFLICT":
+		return http.StatusConflict
+	default:
+		return http.StatusInternalServerError
+	}
+}

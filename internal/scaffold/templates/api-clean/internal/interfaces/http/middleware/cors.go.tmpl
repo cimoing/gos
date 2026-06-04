@@ -1,0 +1,81 @@
+package middleware
+
+import (
+	"net/http"
+	"strconv"
+	"strings"
+)
+
+type CORSOptions struct {
+	AllowedOrigins   []string
+	AllowedMethods   []string
+	AllowedHeaders   []string
+	AllowCredentials bool
+	MaxAge           int
+}
+
+func CORS(options CORSOptions) Middleware {
+	allowedOrigins := defaultStrings(options.AllowedOrigins, []string{"*"})
+	allowedMethods := defaultStrings(options.AllowedMethods, []string{
+		http.MethodGet,
+		http.MethodPost,
+		http.MethodPut,
+		http.MethodPatch,
+		http.MethodDelete,
+		http.MethodOptions,
+	})
+	allowedHeaders := defaultStrings(options.AllowedHeaders, []string{
+		"Authorization",
+		"Content-Type",
+		"X-Request-ID",
+	})
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			origin := r.Header.Get("Origin")
+			if origin != "" {
+				if allowedOrigin := matchOrigin(origin, allowedOrigins); allowedOrigin != "" {
+					w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
+					if allowedOrigin != "*" {
+						w.Header().Add("Vary", "Origin")
+					}
+				}
+			}
+
+			w.Header().Set("Access-Control-Allow-Methods", strings.Join(allowedMethods, ", "))
+			w.Header().Set("Access-Control-Allow-Headers", strings.Join(allowedHeaders, ", "))
+			if options.AllowCredentials {
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+			}
+			if options.MaxAge > 0 {
+				w.Header().Set("Access-Control-Max-Age", strconv.Itoa(options.MaxAge))
+			}
+
+			if r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != "" {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func defaultStrings(values []string, fallback []string) []string {
+	if len(values) == 0 {
+		return fallback
+	}
+	return values
+}
+
+func matchOrigin(origin string, allowedOrigins []string) string {
+	for _, allowedOrigin := range allowedOrigins {
+		if allowedOrigin == "*" {
+			return "*"
+		}
+		if allowedOrigin == origin {
+			return origin
+		}
+	}
+	return ""
+}

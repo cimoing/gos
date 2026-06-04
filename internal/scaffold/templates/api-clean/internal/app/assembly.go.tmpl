@@ -1,0 +1,44 @@
+package app
+
+import (
+	"context"
+	"database/sql"
+
+	"{{ .ModulePath }}/internal/config"
+	"{{ .ModulePath }}/internal/infrastructure/database"
+)
+
+type Dependencies struct {
+	DB           *sql.DB
+	Transactions *database.TxManager
+	// gos:dependencies
+}
+
+func BuildDependencies(ctx context.Context, cfg config.Config) (Dependencies, error) {
+	if err := ctx.Err(); err != nil {
+		return Dependencies{}, err
+	}
+
+	db, err := database.Open(ctx, cfg.Database)
+	if err != nil {
+		return Dependencies{}, err
+	}
+	transactions := database.NewTxManager(db, database.TxOptions{
+		EnableNestedTransaction: cfg.Database.EnableNestedTransaction,
+	})
+
+	// gos:assemble
+
+	return Dependencies{
+		DB:           db,
+		Transactions: transactions,
+		// gos:return-dependencies
+	}, nil
+}
+
+func (d Dependencies) Close() error {
+	if d.DB == nil {
+		return nil
+	}
+	return d.DB.Close()
+}

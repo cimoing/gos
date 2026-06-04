@@ -1,0 +1,20 @@
+package apperror
+
+type Error struct {
+	Code    string
+	Message string
+}
+
+func New(code string, message string) Error {
+	return Error{
+		Code:    code,
+		Message: message,
+	}
+}
+
+func (e Error) Error() string {
+	if e.Message != "" {
+		return e.Message
+	}
+	return e.Code
+}

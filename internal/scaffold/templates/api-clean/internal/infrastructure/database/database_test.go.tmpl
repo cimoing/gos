@@ -1,0 +1,58 @@
+package database
+
+import (
+	"context"
+	"testing"
+
+	"{{ .ModulePath }}/internal/config"
+)
+
+func TestOpenSkipsEmptyDSN(t *testing.T) {
+	db, err := Open(context.Background(), config.DatabaseConfig{
+		Driver: "mysql",
+		DSN:    "",
+	})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	if db != nil {
+		t.Fatalf("expected nil db when DSN is empty")
+	}
+}
+
+func TestOpenRejectsMissingDriver(t *testing.T) {
+	_, err := Open(context.Background(), config.DatabaseConfig{
+		Driver: "",
+		DSN:    "root:password@tcp(127.0.0.1:3306)/app",
+	})
+	if err == nil {
+		t.Fatalf("Open() error = nil, want missing driver error")
+	}
+}
+
+func TestTxManagerRejectsMissingDatabase(t *testing.T) {
+	manager := NewTxManager(nil)
+
+	err := manager.WithinTx(context.Background(), func(ctx context.Context) error {
+		return nil
+	})
+	if err == nil {
+		t.Fatalf("WithinTx() error = nil, want missing database error")
+	}
+}
+
+func TestTxManagerRejectsNilFunction(t *testing.T) {
+	manager := NewTxManager(nil)
+
+	if err := manager.WithinTx(context.Background(), nil); err == nil {
+		t.Fatalf("WithinTx() error = nil, want nil function error")
+	}
+}
+
+func TestNewTxManagerStoresOptions(t *testing.T) {
+	manager := NewTxManager(nil, TxOptions{EnableNestedTransaction: true})
+
+	if !manager.options.EnableNestedTransaction {
+		t.Fatalf("expected nested transaction option to be enabled")
+	}
+}

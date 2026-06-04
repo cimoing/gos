@@ -1,0 +1,98 @@
+package config
+
+import (
+	"os"
+	"strconv"
+)
+
+type Config struct {
+	App      AppConfig
+	HTTP     HTTPConfig
+	Database DatabaseConfig
+	Redis    RedisConfig
+	Log      LogConfig
+}
+
+type AppConfig struct {
+	Name string
+	Env  string
+}
+
+type HTTPConfig struct {
+	Addr string
+}
+
+type DatabaseConfig struct {
+	Driver                  string
+	DSN                     string
+	EnableNestedTransaction bool
+}
+
+type RedisConfig struct {
+	Addr     string
+	Password string
+	DB       int
+}
+
+type LogConfig struct {
+	Level string
+}
+
+func Load() (Config, error) {
+	return Config{
+		App: AppConfig{
+			Name: getEnv("APP_NAME", "{{ .AppName }}"),
+			Env:  getEnv("APP_ENV", "local"),
+		},
+		HTTP: HTTPConfig{
+			Addr: getEnv("HTTP_ADDR", ":8080"),
+		},
+		Database: DatabaseConfig{
+			Driver:                  getEnv("DB_DRIVER", "mysql"),
+			DSN:                     getEnv("DB_DSN", ""),
+			EnableNestedTransaction: getEnvBool("DB_ENABLE_NESTED_TRANSACTION", false),
+		},
+		Redis: RedisConfig{
+			Addr:     getEnv("REDIS_ADDR", "127.0.0.1:6379"),
+			Password: getEnv("REDIS_PASSWORD", ""),
+			DB:       getEnvInt("REDIS_DB", 0),
+		},
+		Log: LogConfig{
+			Level: getEnv("LOG_LEVEL", "info"),
+		},
+	}, nil
+}
+
+func getEnv(key string, fallback string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	return value
+}
+
+func getEnvInt(key string, fallback int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+func getEnvBool(key string, fallback bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}

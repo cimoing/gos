@@ -1,0 +1,31 @@
+package httperror
+
+import (
+	"errors"
+	"net/http"
+	"testing"
+
+	"{{ .ModulePath }}/internal/pkg/apperror"
+)
+
+func TestMapAppError(t *testing.T) {
+	status, body := Map(apperror.New("NOT_FOUND", "not found"))
+
+	if status != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d", status)
+	}
+	if body.Code != "NOT_FOUND" {
+		t.Fatalf("expected code NOT_FOUND, got %s", body.Code)
+	}
+}
+
+func TestMapUnknownError(t *testing.T) {
+	status, body := Map(errors.New("boom"))
+
+	if status != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", status)
+	}
+	if body.Code != "INTERNAL_ERROR" {
+		t.Fatalf("expected code INTERNAL_ERROR, got %s", body.Code)
+	}
+}

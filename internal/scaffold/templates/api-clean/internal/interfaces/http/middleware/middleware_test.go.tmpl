@@ -1,0 +1,129 @@
+package middleware
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+func TestRequestIDUsesIncomingHeader(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := RequestIDFromContext(r.Context()); got != "request-1" {
+			t.Fatalf("expected request id request-1, got %q", got)
+		}
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("X-Request-ID", "request-1")
+	rec := httptest.NewRecorder()
+
+	RequestID()(next).ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("X-Request-ID"); got != "request-1" {
+		t.Fatalf("expected response request id request-1, got %q", got)
+	}
+}
+
+func TestRecoverWritesInternalError(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		panic("boom")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+
+	Recover()(next).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", rec.Code)
+	}
+}
+
+func TestCORSWritesHeaders(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Origin", "https://example.com")
+	rec := httptest.NewRecorder()
+
+	CORS(CORSOptions{})(next).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("expected status 202, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Fatalf("expected allow origin *, got %q", got)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Methods"); got == "" {
+		t.Fatalf("expected allowed methods header")
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Headers"); got == "" {
+		t.Fatalf("expected allowed headers header")
+	}
+}
+
+func TestCORSHandlesPreflight(t *testing.T) {
+	called := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	})
+
+	req := httptest.NewRequest(http.MethodOptions, "/", nil)
+	req.Header.Set("Origin", "https://example.com")
+	req.Header.Set("Access-Control-Request-Method", http.MethodPost)
+	rec := httptest.NewRecorder()
+
+	CORS(CORSOptions{
+		AllowedOrigins: []string{"https://example.com"},
+		MaxAge:         600,
+	})(next).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected status 204, got %d", rec.Code)
+	}
+	if called {
+		t.Fatalf("expected preflight to skip next handler")
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "https://example.com" {
+		t.Fatalf("expected allow origin https://example.com, got %q", got)
+	}
+	if got := rec.Header().Get("Access-Control-Max-Age"); got != "600" {
+		t.Fatalf("expected max age 600, got %q", got)
+	}
+}
+
+func TestChainAppliesMiddlewareInOrder(t *testing.T) {
+	var calls []string
+
+	first := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			calls = append(calls, "first before")
+			next.ServeHTTP(w, r)
+			calls = append(calls, "first after")
+		})
+	}
+	second := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			calls = append(calls, "second before")
+			next.ServeHTTP(w, r)
+			calls = append(calls, "second after")
+		})
+	}
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls = append(calls, "handler")
+	})
+
+	Chain(next, first, second).ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+
+	want := []string{"first before", "second before", "handler", "second after", "first after"}
+	if len(calls) != len(want) {
+		t.Fatalf("calls = %v, want %v", calls, want)
+	}
+	for i := range want {
+		if calls[i] != want[i] {
+			t.Fatalf("calls = %v, want %v", calls, want)
+		}
+	}
+}

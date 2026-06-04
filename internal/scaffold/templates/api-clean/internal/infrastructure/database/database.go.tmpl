@@ -1,0 +1,32 @@
+package database
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"strings"
+
+	"{{ .ModulePath }}/internal/config"
+)
+
+func Open(ctx context.Context, cfg config.DatabaseConfig) (*sql.DB, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(cfg.DSN) == "" {
+		return nil, nil
+	}
+	if strings.TrimSpace(cfg.Driver) == "" {
+		return nil, fmt.Errorf("database driver is required when DB_DSN is set")
+	}
+
+	db, err := sql.Open(cfg.Driver, cfg.DSN)
+	if err != nil {
+		return nil, err
+	}
+	if err := db.PingContext(ctx); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	return db, nil
+}

@@ -1,0 +1,22 @@
+package user
+
+import (
+	"context"
+	"testing"
+)
+
+func TestRegisterUsecaseExecute(t *testing.T) {
+	uc := NewRegisterUsecase()
+
+	out, err := uc.Execute(context.Background(), RegisterInput{
+		Name:     "Jake",
+		Email:    "jake@example.com",
+		Password: "secret",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if out.Email != "jake@example.com" {
+		t.Fatalf("expected email jake@example.com, got %s", out.Email)
+	}
+}

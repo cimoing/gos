@@ -1,0 +1,123 @@
+package database
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"sync"
+)
+
+type Executor interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+type txKey struct{}
+
+type TxOptions struct {
+	EnableNestedTransaction bool
+}
+
+type txState struct {
+	tx   *sql.Tx
+	mu   sync.Mutex
+	next int
+}
+
+type TxManager struct {
+	db      *sql.DB
+	options TxOptions
+}
+
+func NewTxManager(db *sql.DB, options ...TxOptions) *TxManager {
+	manager := &TxManager{db: db}
+	if len(options) > 0 {
+		manager.options = options[0]
+	}
+	return manager
+}
+
+func (m *TxManager) WithinTx(ctx context.Context, fn func(ctx context.Context) error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if fn == nil {
+		return fmt.Errorf("transaction function is required")
+	}
+	if state, ok := txStateFromContext(ctx); ok {
+		if !m.options.EnableNestedTransaction {
+			return fn(ctx)
+		}
+		return m.withSavepoint(ctx, state, fn)
+	}
+	if m == nil || m.db == nil {
+		return fmt.Errorf("database is not configured")
+	}
+
+	tx, err := m.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	txCtx := context.WithValue(ctx, txKey{}, &txState{tx: tx})
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			_ = tx.Rollback()
+			panic(recovered)
+		}
+	}()
+
+	if err := fn(txCtx); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	return tx.Commit()
+}
+
+func (m *TxManager) withSavepoint(ctx context.Context, state *txState, fn func(ctx context.Context) error) error {
+	name := state.nextSavepoint()
+	if _, err := state.tx.ExecContext(ctx, "SAVEPOINT "+name); err != nil {
+		return err
+	}
+
+	committed := false
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			_, _ = state.tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT "+name)
+			panic(recovered)
+		}
+		if !committed {
+			_, _ = state.tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT "+name)
+		}
+	}()
+
+	if err := fn(ctx); err != nil {
+		return err
+	}
+	if _, err := state.tx.ExecContext(ctx, "RELEASE SAVEPOINT "+name); err != nil {
+		return err
+	}
+	committed = true
+	return nil
+}
+
+func ExecutorFromContext(ctx context.Context, db *sql.DB) Executor {
+	if state, ok := txStateFromContext(ctx); ok {
+		return state.tx
+	}
+	return db
+}
+
+func txStateFromContext(ctx context.Context) (*txState, bool) {
+	state, ok := ctx.Value(txKey{}).(*txState)
+	return state, ok && state != nil && state.tx != nil
+}
+
+func (s *txState) nextSavepoint() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.next++
+	return fmt.Sprintf("sp_%d", s.next)
+}

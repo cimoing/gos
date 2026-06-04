@@ -1,0 +1,33 @@
+package user
+
+import "context"
+
+type RegisterInput struct {
+	Name     string
+	Email    string
+	Password string
+}
+
+type RegisterOutput struct {
+	ID    int64
+	Name  string
+	Email string
+}
+
+type RegisterUsecase struct{}
+
+func NewRegisterUsecase() *RegisterUsecase {
+	return &RegisterUsecase{}
+}
+
+func (uc *RegisterUsecase) Execute(ctx context.Context, input RegisterInput) (*RegisterOutput, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	return &RegisterOutput{
+		ID:    1,
+		Name:  input.Name,
+		Email: input.Email,
+	}, nil
+}

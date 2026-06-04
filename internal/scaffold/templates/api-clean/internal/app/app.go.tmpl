@@ -1,0 +1,86 @@
+package app
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"{{ .ModulePath }}/internal/config"
+	httpinterface "{{ .ModulePath }}/internal/interfaces/http"
+)
+
+type App struct {
+	server       *http.Server
+	logger       *slog.Logger
+	dependencies Dependencies
+}
+
+func New(ctx context.Context, cfg config.Config) (*App, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	dependencies, err := BuildDependencies(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	router := httpinterface.NewRouter()
+
+	return &App{
+		server: &http.Server{
+			Addr:              cfg.HTTP.Addr,
+			Handler:           router,
+			ReadHeaderTimeout: 5 * time.Second,
+		},
+		logger:       logger,
+		dependencies: dependencies,
+	}, nil
+}
+
+func (a *App) Run(ctx context.Context) error {
+	defer func() {
+		if err := a.dependencies.Close(); err != nil {
+			a.logger.Error("close dependencies", "error", err)
+		}
+	}()
+
+	errCh := make(chan error, 1)
+
+	go func() {
+		a.logger.Info("http server started", "addr", a.server.Addr)
+		err := a.server.ListenAndServe()
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- err
+			return
+		}
+		errCh <- nil
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(quit)
+
+	select {
+	case err := <-errCh:
+		return err
+	case sig := <-quit:
+		a.logger.Info("shutdown signal received", "signal", sig.String())
+
+		shutdownCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+
+		if err := a.server.Shutdown(shutdownCtx); err != nil {
+			return err
+		}
+
+		a.logger.Info("application stopped")
+		return nil
+	}
+}

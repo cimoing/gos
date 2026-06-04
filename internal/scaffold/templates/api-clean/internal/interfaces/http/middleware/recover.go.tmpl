@@ -1,0 +1,23 @@
+package middleware
+
+import (
+	"log/slog"
+	"net/http"
+
+	"{{ .ModulePath }}/internal/pkg/response"
+)
+
+func Recover() Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					slog.ErrorContext(r.Context(), "panic recovered", "panic", recovered, "request_id", RequestIDFromContext(r.Context()))
+					response.JSON(w, http.StatusInternalServerError, response.Error("INTERNAL_ERROR", "internal server error"))
+				}
+			}()
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}

@@ -1,0 +1,28 @@
+package http
+
+import (
+	"net/http"
+	"time"
+
+	"{{ .ModulePath }}/internal/interfaces/http/middleware"
+	"{{ .ModulePath }}/internal/pkg/response"
+)
+
+func NewRouter() http.Handler {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		response.JSON(w, http.StatusOK, response.Success(map[string]string{
+			"status": "ok",
+		}))
+	})
+
+	return middleware.Chain(
+		mux,
+		middleware.RequestID(),
+		middleware.Recover(),
+		middleware.CORS(middleware.CORSOptions{}),
+		middleware.AccessLog(),
+		middleware.Timeout(10*time.Second),
+	)
+}
