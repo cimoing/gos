@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	"io/fs"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -13,16 +14,19 @@ import (
 	"github.com/jake/gola/internal/naming"
 )
 
-//go:embed templates/* templates/api-clean/.env.example.tmpl templates/api-clean/.gitignore.tmpl templates/api-clean/.github/workflows/ci.yml.tmpl
+const DefaultProjectTemplate = "api-clean"
+
+//go:embed templates/* templates/api-clean/.env.example.tmpl templates/api-clean/.gitignore.tmpl templates/api-clean/.github/workflows/ci.yml.tmpl templates/api-minimal/.gitignore.tmpl
 var templateFS embed.FS
 
 type NewProjectOptions struct {
-	ProjectName string
-	ModulePath  string
-	Template    string
-	TargetDir   string
-	Force       bool
-	DryRun      bool
+	ProjectName       string
+	ModulePath        string
+	Template          string
+	TargetDir         string
+	WithOpenTelemetry bool
+	Force             bool
+	DryRun            bool
 }
 
 type ProjectGenerator struct {
@@ -43,17 +47,19 @@ func (g *ProjectGenerator) Generate(ctx context.Context, opts NewProjectOptions)
 	if strings.TrimSpace(opts.ModulePath) == "" {
 		return nil, fmt.Errorf("module path is required")
 	}
+	opts.Template = strings.TrimSpace(opts.Template)
 	if opts.Template == "" {
-		opts.Template = "api-clean"
+		opts.Template = DefaultProjectTemplate
 	}
-	if opts.Template != "api-clean" {
-		return nil, fmt.Errorf("unknown template %q", opts.Template)
+	if !projectTemplateExists(opts.Template) {
+		return nil, fmt.Errorf("unknown template %q (available: %s)", opts.Template, strings.Join(SupportedProjectTemplates(), ", "))
 	}
 
 	data := projectTemplateData{
-		ProjectName: opts.ProjectName,
-		ModulePath:  opts.ModulePath,
-		AppName:     naming.ToKebab(opts.ProjectName),
+		ProjectName:       opts.ProjectName,
+		ModulePath:        opts.ModulePath,
+		AppName:           naming.ToKebab(opts.ProjectName),
+		WithOpenTelemetry: opts.WithOpenTelemetry,
 	}
 
 	rendered, err := g.engine.Templates.RenderFiles(templateFS, filepath.ToSlash(filepath.Join("templates", opts.Template)), data)
@@ -82,8 +88,34 @@ func (g *ProjectGenerator) Generate(ctx context.Context, opts NewProjectOptions)
 	})
 }
 
+func SupportedProjectTemplates() []string {
+	entries, err := fs.ReadDir(templateFS, "templates")
+	if err != nil {
+		return []string{DefaultProjectTemplate}
+	}
+
+	templates := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			templates = append(templates, entry.Name())
+		}
+	}
+	sort.Strings(templates)
+	return templates
+}
+
+func projectTemplateExists(name string) bool {
+	for _, template := range SupportedProjectTemplates() {
+		if template == name {
+			return true
+		}
+	}
+	return false
+}
+
 type projectTemplateData struct {
-	ProjectName string
-	ModulePath  string
-	AppName     string
+	ProjectName       string
+	ModulePath        string
+	AppName           string
+	WithOpenTelemetry bool
 }

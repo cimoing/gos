@@ -6,9 +6,23 @@ import (
 
 	"{{ .ModulePath }}/internal/interfaces/http/middleware"
 	"{{ .ModulePath }}/internal/pkg/response"
+{{- if .WithOpenTelemetry }}
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+{{- end }}
 )
 
-func NewRouter() http.Handler {
+type RouterOptions struct {
+	TraceHTTP   bool
+	ServiceName string
+}
+
+func NewRouter(options ...RouterOptions) http.Handler {
+{{- if .WithOpenTelemetry }}
+	var opts RouterOptions
+	if len(options) > 0 {
+		opts = options[0]
+	}
+{{- end }}
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -17,7 +31,7 @@ func NewRouter() http.Handler {
 		}))
 	})
 
-	return middleware.Chain(
+	handler := middleware.Chain(
 		mux,
 		middleware.RequestID(),
 		middleware.Recover(),
@@ -25,4 +39,10 @@ func NewRouter() http.Handler {
 		middleware.AccessLog(),
 		middleware.Timeout(10*time.Second),
 	)
+{{ if .WithOpenTelemetry }}
+	if opts.TraceHTTP {
+		return otelhttp.NewHandler(handler, opts.ServiceName)
+	}
+{{ end }}
+	return handler
 }

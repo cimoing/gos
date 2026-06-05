@@ -1,0 +1,37 @@
+package http
+
+import (
+	"net/http"
+{{- if .WithOpenTelemetry }}
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+{{- end }}
+)
+
+type RouterOptions struct {
+	TraceHTTP   bool
+	ServiceName string
+}
+
+func NewRouter(options ...RouterOptions) http.Handler {
+{{- if .WithOpenTelemetry }}
+	var opts RouterOptions
+	if len(options) > 0 {
+		opts = options[0]
+	}
+{{- end }}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", Healthz)
+{{ if .WithOpenTelemetry }}
+	if opts.TraceHTTP {
+		return otelhttp.NewHandler(mux, opts.ServiceName)
+	}
+{{ end }}
+	return mux
+}
+
+func Healthz(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{"status":"ok"}`))
+}

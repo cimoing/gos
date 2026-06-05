@@ -55,6 +55,9 @@ func (r *Renderer) RenderFiles(source fs.FS, root string, data any) (map[string]
 		if err := tmpl.Execute(&rendered, data); err != nil {
 			return err
 		}
+		if len(bytes.TrimSpace(rendered.Bytes())) == 0 {
+			return nil
+		}
 
 		files[outputPath] = rendered.Bytes()
 		return nil

@@ -11,6 +11,9 @@ import (
 	"time"
 
 	"{{ .ModulePath }}/internal/config"
+{{- if .WithOpenTelemetry }}
+	"{{ .ModulePath }}/internal/observability"
+{{- end }}
 	httpinterface "{{ .ModulePath }}/internal/interfaces/http"
 )
 
@@ -18,6 +21,9 @@ type App struct {
 	server       *http.Server
 	logger       *slog.Logger
 	dependencies Dependencies
+{{- if .WithOpenTelemetry }}
+	shutdownTelemetry func(context.Context) error
+{{- end }}
 }
 
 func New(ctx context.Context, cfg config.Config) (*App, error) {
@@ -30,8 +36,19 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+{{ if .WithOpenTelemetry }}
+	shutdownTelemetry, err := observability.SetupOpenTelemetry(ctx, cfg.Observability)
+	if err != nil {
+		return nil, err
+	}
 
+	router := httpinterface.NewRouter(httpinterface.RouterOptions{
+		TraceHTTP:   cfg.Observability.Enabled,
+		ServiceName: cfg.Observability.ServiceName,
+	})
+{{- else }}
 	router := httpinterface.NewRouter()
+{{- end }}
 
 	return &App{
 		server: &http.Server{
@@ -41,10 +58,22 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 		},
 		logger:       logger,
 		dependencies: dependencies,
+{{- if .WithOpenTelemetry }}
+		shutdownTelemetry: shutdownTelemetry,
+{{- end }}
 	}, nil
 }
 
 func (a *App) Run(ctx context.Context) error {
+{{- if .WithOpenTelemetry }}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := a.shutdownTelemetry(shutdownCtx); err != nil {
+			a.logger.Error("shutdown telemetry", "error", err)
+		}
+	}()
+{{ end }}
 	defer func() {
 		if err := a.dependencies.Close(); err != nil {
 			a.logger.Error("close dependencies", "error", err)

@@ -11,6 +11,9 @@ type Config struct {
 	Database DatabaseConfig
 	Redis    RedisConfig
 	Log      LogConfig
+{{- if .WithOpenTelemetry }}
+	Observability ObservabilityConfig
+{{- end }}
 }
 
 type AppConfig struct {
@@ -37,6 +40,14 @@ type RedisConfig struct {
 type LogConfig struct {
 	Level string
 }
+{{ if .WithOpenTelemetry }}
+type ObservabilityConfig struct {
+	Enabled      bool
+	ServiceName  string
+	OTLPEndpoint string
+	OTLPInsecure bool
+}
+{{ end }}
 
 func Load() (Config, error) {
 	return Config{
@@ -60,6 +71,14 @@ func Load() (Config, error) {
 		Log: LogConfig{
 			Level: getEnv("LOG_LEVEL", "info"),
 		},
+{{- if .WithOpenTelemetry }}
+		Observability: ObservabilityConfig{
+			Enabled:      getEnvBool("OTEL_ENABLED", false),
+			ServiceName:  getEnv("OTEL_SERVICE_NAME", "{{ .AppName }}"),
+			OTLPEndpoint: getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4318"),
+			OTLPInsecure: getEnvBool("OTEL_EXPORTER_OTLP_INSECURE", true),
+		},
+{{- end }}
 	}, nil
 }
 

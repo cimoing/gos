@@ -25,6 +25,12 @@ func TestExecuteHelp(t *testing.T) {
 	if !strings.Contains(stdout.String(), "--openapi") {
 		t.Fatalf("help output missing --openapi = %q", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "--with-otel") {
+		t.Fatalf("help output missing --with-otel = %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "gos make:command") {
+		t.Fatalf("help output missing make:command = %q", stdout.String())
+	}
 }
 
 func TestExecuteNewDryRunAllowsFlagsAfterProject(t *testing.T) {
@@ -142,5 +148,18 @@ func TestExecuteMakeMigrationDryRun(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "migrations/") {
 		t.Fatalf("make:migration output = %q", stdout.String())
+	}
+}
+
+func TestExecuteMakeCommandDryRun(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	err := Execute(context.Background(), []string{"make:command", "sync-orders", "--dry-run"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "internal/command/sync_orders.go") {
+		t.Fatalf("make:command output = %q", stdout.String())
 	}
 }

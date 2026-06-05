@@ -1,4 +1,4 @@
-.PHONY: run serve schedule queue test vet build
+.PHONY: run serve schedule queue test build
 
 run: serve
 
@@ -14,8 +14,5 @@ queue:
 test:
 	go test ./...
 
-vet:
-	go vet ./...
-
 build:
-	go build -o bin/api ./cmd/api
+	go build ./cmd/api

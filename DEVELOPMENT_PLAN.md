@@ -29,7 +29,7 @@
 
 ---
 
-## 当前实现快照（2026-06-04）
+## 当前实现快照（2026-06-05）
 
 当前项目已具备可用 MVP 能力，并已推进到工程能力增强阶段。
 
@@ -51,13 +51,20 @@
 13. CORS 中间件
 14. 基于 enableNestedTransaction 的嵌套事务 savepoint
 15. 项目内 .tmp 临时目录用于端到端验证和 Go cache
+16. CLI 使用指南 docs/CLI_GUIDE.md
+17. 生成项目代码使用指南 docs/GENERATED_PROJECT_GUIDE.md
+18. api-clean 生成项目 README 详细使用文档
+19. 多模板发现与校验
+20. api-minimal 极简 HTTP 项目模板
+21. 基于 Cobra 的 cmd/api 子命令模板：serve、schedule、queue
+22. 基于 Cobra 的 gos make:command <name>，支持 --register、--force、--dry-run
+23. gos new --with-otel 可选 OpenTelemetry tracing 支持
 ```
 
 仍未完成：
 
 ```text
-1. 多模板支持
-2. README/DEVELOPMENT_PLAN 旧设计段落的进一步归档整理
+1. README/DEVELOPMENT_PLAN 旧设计段落的进一步归档整理
 ```
 
 ---
@@ -1774,4 +1781,94 @@ v0.6.x 引入高级能力
 4. 在生成项目内执行 make:repository 成功
 5. 生成项目 go test ./... 通过
 6. 生成项目 go build ./cmd/api 通过
+```
+
+### 2026-06-05 多模板支持进度
+
+已完成：
+
+```text
+1. ProjectGenerator 增加内置模板发现能力
+2. 未知模板错误会输出可用模板列表
+3. gos new --template 支持 api-clean 与 api-minimal
+4. 新增 api-minimal 极简 HTTP 项目模板
+5. api-minimal 生成 go.mod、README.md、Makefile、cmd/api、config、router 和 router 测试
+6. README 和 docs/CLI_GUIDE.md 补充 api-minimal 使用说明
+7. DEVELOPMENT_PLAN 当前实现快照将多模板标为已完成
+```
+
+验证结果：
+
+```text
+1. 脚手架自身 go test ./... 通过
+2. 临时 CLI 可生成 api-clean 项目
+3. 临时 CLI 可生成 api-minimal 项目
+4. api-clean 生成项目 go test ./... 通过
+5. api-clean 生成项目 go build ./cmd/api 通过
+6. api-minimal 生成项目 go test ./... 通过
+7. api-minimal 生成项目 go build ./cmd/api 通过
+```
+
+### 2026-06-05 cmd 子命令与命令脚本进度
+
+已完成：
+
+```text
+1. api-clean cmd/api 模板改为 Cobra 子命令入口
+2. api-minimal cmd/api 模板改为 Cobra 子命令入口
+3. 默认子命令包含 serve、schedule、queue、help
+4. go run ./cmd/api 默认等同 serve
+5. schedule 提供定时任务循环占位
+6. queue 提供队列消费循环占位
+7. cmd/api/main.go 增加 gos:command-imports 与 gos:commands 注册 marker
+8. 新增 gos make:command <name>
+9. make:command 默认生成 internal/command/<name>.go Cobra 命令和测试
+10. make:command --register 自动更新标准 cmd/api/main.go Cobra root command
+11. README、docs/CLI_GUIDE.md、docs/GENERATED_PROJECT_GUIDE.md 和生成项目 README 模板补充命令说明
+```
+
+验证结果：
+
+```text
+1. 脚手架自身 go test ./... 通过
+2. 临时 CLI 可生成 api-clean 项目
+3. 临时 CLI 可生成 api-minimal 项目
+4. 生成项目 go test ./... 通过
+5. 生成项目 go build ./cmd/api 通过
+6. 在 api-clean 生成项目内执行 gos make:command sync-orders --register 成功
+7. 注册后 api-clean 生成项目 go test ./... 通过
+8. 注册后 api-clean 生成项目 go build ./cmd/api 通过
+9. 在 api-minimal 生成项目内执行 gos make:command sync-orders --register 成功
+10. 注册后 api-minimal 生成项目 go test ./... 通过
+11. 注册后 api-minimal 生成项目 go build ./cmd/api 通过
+12. go run ./cmd/api help 和 go run ./cmd/api sync-orders 可实际执行
+```
+
+### 2026-06-05 OpenTelemetry 可选支持进度
+
+已完成：
+
+```text
+1. gos new 增加 --with-otel 参数
+2. 模板渲染器支持跳过渲染后为空的可选模板文件
+3. api-clean --with-otel 生成 internal/observability/otel.go
+4. api-minimal --with-otel 生成 internal/observability/otel.go
+5. 生成项目配置增加 ObservabilityConfig
+6. HTTP router 在启用 OTEL 时使用 otelhttp 包裹
+7. 启动阶段按配置初始化 OTLP HTTP trace exporter
+8. 默认不使用 --with-otel 时不生成 OpenTelemetry 依赖和 observability 文件
+9. README、docs/CLI_GUIDE.md、docs/GENERATED_PROJECT_GUIDE.md 和生成项目 README 模板补充 OTEL 使用说明
+10. docs/OPEN_TELEMETRY.md 落地 OpenTelemetry tracing 使用、配置、代码落点和验证说明
+```
+
+验证结果：
+
+```text
+1. 脚手架自身 go test ./... 通过
+2. api-minimal --with-otel 生成项目 go test ./... 通过
+3. api-minimal --with-otel 生成项目 go build ./cmd/api 通过
+4. api-clean --with-otel 生成项目 go test ./... 通过
+5. api-clean --with-otel 生成项目 go build ./cmd/api 通过
+6. 默认 api-minimal 生成项目不包含 OpenTelemetry 依赖和 internal/observability
+7. 默认 api-minimal 生成项目 go test ./... 与 go build ./cmd/api 通过
 ```

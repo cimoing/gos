@@ -4,13 +4,17 @@ import (
 	"context"
 	"log"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"{{ .ModulePath }}/internal/app"
 	"{{ .ModulePath }}/internal/config"
+	httpinterface "{{ .ModulePath }}/internal/interfaces/http"
+{{- if .WithOpenTelemetry }}
+	"{{ .ModulePath }}/internal/observability"
+{{- end }}
 	"github.com/spf13/cobra"
 	// gos:command-imports
 )
@@ -76,17 +80,43 @@ func newQueueCommand() *cobra.Command {
 }
 
 func runServe(ctx context.Context) error {
-	cfg, err := config.Load()
-	if err != nil {
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 
-	application, err := app.New(ctx, cfg)
+	cfg := config.Load()
+{{ if .WithOpenTelemetry }}
+	shutdownTelemetry, err := observability.SetupOpenTelemetry(ctx, cfg.Observability)
 	if err != nil {
 		return err
 	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := shutdownTelemetry(shutdownCtx); err != nil {
+			log.Printf("shutdown telemetry: %v", err)
+		}
+	}()
 
-	return application.Run(ctx)
+	router := httpinterface.NewRouter(httpinterface.RouterOptions{
+		TraceHTTP:   cfg.Observability.Enabled,
+		ServiceName: cfg.Observability.ServiceName,
+	})
+{{- else }}
+	router := httpinterface.NewRouter()
+{{- end }}
+
+	server := &http.Server{
+		Addr:              cfg.HTTPAddr,
+		Handler:           router,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
+	log.Printf("http server started addr=%s", cfg.HTTPAddr)
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		return err
+	}
+	return nil
 }
 
 func runSchedule(ctx context.Context) error {

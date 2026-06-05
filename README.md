@@ -1,5 +1,28 @@
 # Go 原生后端脚手架项目整体设计文档
 
+## 文档导航
+
+如果你是第一次使用本项目，建议按下面顺序阅读：
+
+```text
+1. docs/CLI_GUIDE.md
+   了解 gos 的安装、项目生成、make:* 命令、字段 DSL、dry-run/force 和常见开发流程。
+
+2. docs/GENERATED_PROJECT_GUIDE.md
+   了解 gos 生成出来的业务项目如何运行、配置、分层开发、使用事务、编写测试和接入数据库。
+
+3. docs/OPEN_TELEMETRY.md
+   了解 gos new --with-otel 生成的 OpenTelemetry tracing 能力、配置、代码落点和验证方式。
+
+4. README.md
+   阅读整体设计原则、架构取舍和后续路线图。
+
+5. DEVELOPMENT_PLAN.md
+   查看开发进度、版本路线和已完成能力。
+```
+
+生成项目自身的 `README.md` 也会包含一份可直接落地的使用说明，覆盖生成代码的结构、配置、事务、测试、Docker 和最佳实践。
+
 ## 1. 项目定位
 
 本项目旨在设计并开发一个面向 Go 语言后端应用的工程脚手架，用于快速创建结构清晰、易于测试、易于维护、适合中大型业务演进的后端项目。
@@ -26,20 +49,21 @@
 
 ---
 
-## 当前实现状态（2026-06-04）
+## 当前实现状态（2026-06-05）
 
-当前仓库已实现一个可运行的 `gos` CLI 和内置 `api-clean` 项目模板。
+当前仓库已实现一个可运行的 `gos` CLI，并内置 `api-clean` 与 `api-minimal` 项目模板。
 
 已实现命令：
 
 ```bash
-gos new <project> [--module=<module>] [--template=api-clean] [--force] [--dry-run]
+gos new <project> [--module=<module>] [--template=api-clean|api-minimal] [--with-otel] [--force] [--dry-run]
 gos make:usecase <module>/<action> [--force] [--dry-run]
 gos make:handler <module> [--module=<module-path>] [--register] [--openapi] [--force] [--dry-run]
 gos make:model <module> [--fields=name:string[:unique,nullable,size=320,default=value,sql=TEXT,json=name]] [--force] [--dry-run]
 gos make:repository <module> [--module=<module-path>] [--db=mysql] [--table=<table>] [--fields=name:string[:unique,nullable,size=320,default=value,sql=TEXT,json=name]] [--with-migration] [--migration-dir=migrations] [--register] [--force] [--dry-run]
 gos make:migration <name> [--dir=migrations] [--force] [--dry-run]
 gos make:test <usecase|handler|repository> <name> [--module=<module-path>] [--force] [--dry-run]
+gos make:command <name> [--module=<module-path>] [--register] [--force] [--dry-run]
 ```
 
 `api-clean` 当前包含：
@@ -51,11 +75,24 @@ gos make:test <usecase|handler|repository> <name> [--module=<module-path>] [--fo
 4. OpenAPI 起始文件和 handler 自动追加能力
 5. MySQL driver 注册、database/sql 连接入口、事务管理和依赖组装
 6. MySQL Repository 代码生成、集成测试模板和迁移文件生成
-7. Dockerfile、Docker Compose
-8. GitHub Actions CI
+7. cmd/api 子命令入口：serve、schedule、queue
+8. 基于 Cobra 的命令脚本生成与自动注册
+9. 可选 OpenTelemetry tracing 支持
+10. Dockerfile、Docker Compose
+11. GitHub Actions CI
 ```
 
-仍属于后续路线图的能力包括多模板支持。
+`api-minimal` 当前包含：
+
+```text
+1. 标准库 HTTP API 入口
+2. 环境变量配置
+3. /healthz 健康检查
+4. 基础路由测试
+5. Makefile 便利入口
+```
+
+仍需要继续整理的是 README/DEVELOPMENT_PLAN 中较早设计段落与当前实现状态之间的归档关系。
 
 ---
 
@@ -258,6 +295,7 @@ gos make:usecase user/register
 gos make:handler user
 gos make:repository user
 gos make:migration create_users_table
+gos make:command sync-orders
 ```
 
 ### 4.3 internal/generator
@@ -394,11 +432,6 @@ myapp/
 │   │
 │   └── k8s/
 │
-├── scripts/
-│   ├── dev.sh
-│   ├── test.sh
-│   └── migrate.sh
-│
 ├── .env.example
 ├── .gitignore
 ├── go.mod
@@ -406,6 +439,8 @@ myapp/
 ├── Makefile
 └── README.md
 ```
+
+当前 `api-clean` 模板不生成 `scripts` 目录。常用操作直接使用 `go`、`gos`、`docker compose` 命令；`Makefile` 只是可选便利入口。
 
 ---
 
@@ -1791,19 +1826,28 @@ api/proto/*.proto
 当前已支持：
 
 ```bash
-gos new <project> [--module=<module>] [--template=api-clean] [--force] [--dry-run]
+gos new <project> [--module=<module>] [--template=api-clean|api-minimal] [--with-otel] [--force] [--dry-run]
 gos make:usecase <module>/<action> [--force] [--dry-run]
 gos make:handler <module> [--module=<module-path>] [--register] [--openapi] [--force] [--dry-run]
 gos make:model <module> [--fields=name:string[:unique,nullable,size=320,default=value,sql=TEXT,json=name]] [--force] [--dry-run]
 gos make:repository <module> [--module=<module-path>] [--db=mysql] [--table=<table>] [--fields=name:string[:unique,nullable,size=320,default=value,sql=TEXT,json=name]] [--with-migration] [--migration-dir=migrations] [--register] [--force] [--dry-run]
 gos make:migration <name> [--dir=migrations] [--force] [--dry-run]
 gos make:test <usecase|handler|repository> <name> [--module=<module-path>] [--force] [--dry-run]
+gos make:command <name> [--module=<module-path>] [--register] [--force] [--dry-run]
 ```
 
 示例：
 
 ```bash
 gos new blog --module=example.com/blog --template=api-clean
+```
+
+```bash
+gos new tiny-api --module=example.com/tiny-api --template=api-minimal
+```
+
+```bash
+gos new traced-api --module=example.com/traced-api --with-otel
 ```
 
 ```bash
@@ -1822,6 +1866,11 @@ gos make:model invoice --fields=number:string:json=invoice_number,total:int64,cr
 gos make:repository user --db=mysql --fields=email:string:unique,size=320,created_at:time --with-migration --register
 ```
 
+```bash
+gos make:command sync-orders --register
+go run ./cmd/api sync-orders
+```
+
 ### 26.1 new 命令
 
 创建新项目。
@@ -1834,6 +1883,8 @@ gos new myapp
 
 ```bash
 --template=api-clean
+--template=api-minimal
+--with-otel
 --module=example.com/myapp
 --force
 --dry-run
@@ -1938,6 +1989,24 @@ migrations/20260603120000_create_users_table.up.sql
 migrations/20260603120000_create_users_table.down.sql
 ```
 
+### 26.7 make:command 命令
+
+生成可从 `cmd/api` 执行的 Cobra 命令脚本。
+
+```bash
+gos make:command sync-orders --register
+go run ./cmd/api sync-orders
+```
+
+生成：
+
+```text
+internal/command/sync_orders.go
+internal/command/sync_orders_test.go
+```
+
+`--register` 会更新标准 `cmd/api/main.go` 中的 Cobra root command；默认生成项目已内置 `serve`、`schedule`、`queue` 三个子命令。
+
 ---
 
 ## 27. 代码生成原则
@@ -1960,6 +2029,16 @@ migrations/20260603120000_create_users_table.down.sql
 ---
 
 ## 28. 模板设计
+
+当前内置模板：
+
+```text
+1. api-clean
+   默认完整 API 模板
+
+2. api-minimal
+   极简标准库 HTTP 模板
+```
 
 模板目录建议：
 
@@ -2244,6 +2323,8 @@ jobs:
 
 ### 34.4 第四阶段：多模板支持
 
+当前已完成内置模板发现、未知模板校验，以及 `api-clean` / `api-minimal` 两个模板。下面列表保留为后续模板扩展方向。
+
 功能：
 
 ```text
@@ -2316,7 +2397,6 @@ api
 migrations
 test
 deployments
-scripts
 ```
 
 核心依赖关系：

@@ -1,0 +1,56 @@
+{{ if .WithOpenTelemetry -}}
+package observability
+
+import (
+	"context"
+
+	"{{ .ModulePath }}/internal/config"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+)
+
+func SetupOpenTelemetry(ctx context.Context, cfg config.ObservabilityConfig) (func(context.Context) error, error) {
+	if !cfg.Enabled {
+		return func(context.Context) error { return nil }, nil
+	}
+
+	exporterOptions := []otlptracehttp.Option{
+		otlptracehttp.WithEndpoint(cfg.OTLPEndpoint),
+	}
+	if cfg.OTLPInsecure {
+		exporterOptions = append(exporterOptions, otlptracehttp.WithInsecure())
+	}
+
+	exporter, err := otlptracehttp.New(ctx, exporterOptions...)
+	if err != nil {
+		return nil, err
+	}
+
+	telemetryResource, err := resource.New(ctx,
+		resource.WithTelemetrySDK(),
+		resource.WithAttributes(
+			attribute.String("service.name", cfg.ServiceName),
+		),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	tracerProvider := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exporter),
+		sdktrace.WithResource(telemetryResource),
+	)
+
+	otel.SetTracerProvider(tracerProvider)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	))
+
+	return tracerProvider.Shutdown, nil
+}
+{{- end }}

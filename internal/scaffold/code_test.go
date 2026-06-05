@@ -234,6 +234,118 @@ func TestCodeGeneratorGenerateHandlerSkipsNonStandardOpenAPIRegistration(t *test
 	}
 }
 
+func TestCodeGeneratorGenerateCommand(t *testing.T) {
+	root := t.TempDir()
+	gen := NewCodeGenerator(generator.Default())
+
+	result, err := gen.GenerateCommand(context.Background(), MakeCommandOptions{
+		TargetDir:  root,
+		Name:       "sync-orders",
+		ModulePath: "example.com/demo",
+	})
+	if err != nil {
+		t.Fatalf("GenerateCommand() error = %v", err)
+	}
+	if len(result.Created) != 2 {
+		t.Fatalf("created files = %v, want 2 files", result.Created)
+	}
+
+	for _, path := range []string{
+		"internal/command/sync_orders.go",
+		"internal/command/sync_orders_test.go",
+	} {
+		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(path))); err != nil {
+			t.Fatalf("expected generated file %s: %v", path, err)
+		}
+	}
+
+	assertGeneratedFileContains(t, root, "internal/command/sync_orders.go", "func NewSyncOrdersCommand() *cobra.Command")
+	assertGeneratedFileContains(t, root, "internal/command/sync_orders.go", `"command", "sync-orders"`)
+	assertGeneratedFileContains(t, root, "internal/command/sync_orders.go", "github.com/spf13/cobra")
+}
+
+func TestCodeGeneratorGenerateCommandRegistersMain(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "demo")
+	projectGen := NewProjectGenerator(generator.Default())
+	_, err := projectGen.Generate(context.Background(), NewProjectOptions{
+		ProjectName: "demo",
+		ModulePath:  "example.com/demo",
+		Template:    "api-clean",
+		TargetDir:   root,
+	})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	codeGen := NewCodeGenerator(generator.Default())
+	result, err := codeGen.GenerateCommand(context.Background(), MakeCommandOptions{
+		TargetDir:  root,
+		Name:       "sync-orders",
+		ModulePath: "example.com/demo",
+		Register:   true,
+	})
+	if err != nil {
+		t.Fatalf("GenerateCommand() error = %v", err)
+	}
+	if len(result.Updated) != 1 {
+		t.Fatalf("updated files = %v, want main update", result.Updated)
+	}
+
+	main, err := os.ReadFile(filepath.Join(root, "cmd", "api", "main.go"))
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	mainText := string(main)
+	if !strings.Contains(mainText, `appcommand "example.com/demo/internal/command"`) {
+		t.Fatalf("main missing command import:\n%s", mainText)
+	}
+	if !strings.Contains(mainText, "rootCmd.AddCommand(appcommand.NewSyncOrdersCommand())") {
+		t.Fatalf("main missing command registration:\n%s", mainText)
+	}
+}
+
+func TestCodeGeneratorGenerateCommandSkipsNonStandardMainRegistration(t *testing.T) {
+	root := t.TempDir()
+	mainDir := filepath.Join(root, "cmd", "api")
+	if err := os.MkdirAll(mainDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	mainPath := filepath.Join(mainDir, "main.go")
+	if err := os.WriteFile(mainPath, []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	gen := NewCodeGenerator(generator.Default())
+	result, err := gen.GenerateCommand(context.Background(), MakeCommandOptions{
+		TargetDir:  root,
+		Name:       "sync-orders",
+		ModulePath: "example.com/demo",
+		Register:   true,
+	})
+	if err != nil {
+		t.Fatalf("GenerateCommand() error = %v", err)
+	}
+	if len(result.Created) != 2 {
+		t.Fatalf("created files = %v, want command and test", result.Created)
+	}
+	if len(result.Skipped) != 1 || result.Skipped[0] != "cmd/api/main.go" {
+		t.Fatalf("skipped files = %v, want main skipped", result.Skipped)
+	}
+}
+
+func TestCodeGeneratorRejectsReservedCommandName(t *testing.T) {
+	gen := NewCodeGenerator(generator.Default())
+
+	_, err := gen.GenerateCommand(context.Background(), MakeCommandOptions{
+		TargetDir:  t.TempDir(),
+		Name:       "queue",
+		ModulePath: "example.com/demo",
+	})
+	if err == nil {
+		t.Fatalf("GenerateCommand() error = nil, want reserved command error")
+	}
+}
+
 func TestCodeGeneratorGenerateRepository(t *testing.T) {
 	root := t.TempDir()
 	gen := NewCodeGenerator(generator.Default())
@@ -843,5 +955,17 @@ func TestCodeGeneratorGenerateMigration(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(path))); err != nil {
 			t.Fatalf("expected generated file %s: %v", path, err)
 		}
+	}
+}
+
+func assertGeneratedFileContains(t *testing.T, root string, path string, want string) {
+	t.Helper()
+
+	content, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+	if err != nil {
+		t.Fatalf("ReadFile(%s) error = %v", path, err)
+	}
+	if !strings.Contains(string(content), want) {
+		t.Fatalf("%s missing %q:\n%s", path, want, string(content))
 	}
 }

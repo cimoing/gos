@@ -19,6 +19,7 @@ func runNew(ctx context.Context, args []string, stdout io.Writer) error {
 	var opts scaffold.NewProjectOptions
 	flags.StringVar(&opts.ModulePath, "module", "", "Go module path for the generated project")
 	flags.StringVar(&opts.Template, "template", "api-clean", "project template")
+	flags.BoolVar(&opts.WithOpenTelemetry, "with-otel", false, "include optional OpenTelemetry tracing support")
 	flags.BoolVar(&opts.Force, "force", false, "overwrite existing files")
 	flags.BoolVar(&opts.DryRun, "dry-run", false, "print planned files without writing them")
 
@@ -29,7 +30,7 @@ func runNew(ctx context.Context, args []string, stdout io.Writer) error {
 
 	remaining := flags.Args()
 	if len(remaining) != 1 {
-		return fmt.Errorf("usage: gos new <project> [--module=<module>] [--template=api-clean] [--force] [--dry-run]")
+		return fmt.Errorf("usage: gos new <project> [--module=<module>] [--template=api-clean|api-minimal] [--with-otel] [--force] [--dry-run]")
 	}
 
 	projectPath, err := filepath.Abs(remaining[0])

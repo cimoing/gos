@@ -77,6 +77,15 @@ type MakeTestOptions struct {
 	DryRun     bool
 }
 
+type MakeCommandOptions struct {
+	TargetDir  string
+	Name       string
+	ModulePath string
+	Register   bool
+	Force      bool
+	DryRun     bool
+}
+
 func NewCodeGenerator(engine *generator.Engine) *CodeGenerator {
 	return &CodeGenerator{
 		engine: engine,
@@ -453,6 +462,77 @@ func (g *CodeGenerator) GenerateTest(ctx context.Context, opts MakeTestOptions) 
 		Force:  opts.Force,
 		DryRun: opts.DryRun,
 	})
+}
+
+func (g *CodeGenerator) GenerateCommand(ctx context.Context, opts MakeCommandOptions) (*filesystem.Result, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(opts.ModulePath) == "" {
+		return nil, fmt.Errorf("module path is required")
+	}
+
+	commandName := naming.ToKebab(opts.Name)
+	if commandName == "" {
+		return nil, fmt.Errorf("command name is required")
+	}
+	switch commandName {
+	case "serve", "schedule", "queue", "help":
+		return nil, fmt.Errorf("command name %q is reserved", commandName)
+	}
+
+	data := commandTemplateData{
+		ModulePath:   opts.ModulePath,
+		PackageName:  "command",
+		CommandName:  commandName,
+		FunctionName: "New" + naming.ToPascal(opts.Name) + "Command",
+	}
+
+	source, err := g.engine.Templates.RenderString("command.go", commandGoTemplate, data)
+	if err != nil {
+		return nil, err
+	}
+	testSource, err := g.engine.Templates.RenderString("command_test.go", commandTestTemplate, data)
+	if err != nil {
+		return nil, err
+	}
+
+	fileName := naming.ToSnake(opts.Name)
+	files := []filesystem.File{
+		{
+			Path:    filepath.ToSlash(filepath.Join("internal", "command", fileName+".go")),
+			Content: source,
+		},
+		{
+			Path:    filepath.ToSlash(filepath.Join("internal", "command", fileName+"_test.go")),
+			Content: testSource,
+		},
+	}
+
+	var skipped []string
+	if opts.Register {
+		mainSource, changed, err := registerCommandInMain(opts.TargetDir, data)
+		if err != nil {
+			skipped = append(skipped, filepath.ToSlash(filepath.Join("cmd", "api", "main.go")))
+		} else if changed {
+			files = append(files, filesystem.File{
+				Path:      filepath.ToSlash(filepath.Join("cmd", "api", "main.go")),
+				Content:   mainSource,
+				Overwrite: true,
+			})
+		}
+	}
+
+	result, err := g.engine.Writer.Write(files, filesystem.WriteOptions{
+		Root:   opts.TargetDir,
+		Force:  opts.Force,
+		DryRun: opts.DryRun,
+	})
+	if err != nil {
+		return nil, err
+	}
+	result.Skipped = append(result.Skipped, skipped...)
+	return result, nil
 }
 
 func (g *CodeGenerator) makeUsecaseTestFile(name string) (filesystem.File, error) {
@@ -1001,6 +1081,13 @@ type handlerTemplateData struct {
 	RoutePath    string
 }
 
+type commandTemplateData struct {
+	ModulePath   string
+	PackageName  string
+	CommandName  string
+	FunctionName string
+}
+
 type repositoryTemplateData struct {
 	ModulePath              string
 	PackageName             string
@@ -1133,7 +1220,7 @@ func registerHandlerInRouter(root string, data handlerTemplateData) ([]byte, boo
 		text = strings.Replace(text, importMarker, "\n\t\""+importPath+"\""+importMarker, 1)
 	}
 
-	registrationMarker := "\n\treturn middleware.Chain("
+	registrationMarker := "\n\thandler := middleware.Chain("
 	if !strings.Contains(text, registrationMarker) {
 		return nil, false, fmt.Errorf("router NewRouter function is not in the expected api-clean format")
 	}
@@ -1235,6 +1322,41 @@ func registerRepositoryInAssembly(root string, data repositoryTemplateData) ([]b
 	return formatted, true, nil
 }
 
+func registerCommandInMain(root string, data commandTemplateData) ([]byte, bool, error) {
+	mainPath := filepath.Join(root, "cmd", "api", "main.go")
+	source, err := os.ReadFile(mainPath)
+	if err != nil {
+		return nil, false, fmt.Errorf("read main for command registration: %w", err)
+	}
+
+	text := string(source)
+	if strings.Contains(text, "appcommand."+data.FunctionName+"()") {
+		return source, false, nil
+	}
+
+	importPath := data.ModulePath + "/internal/command"
+	if !strings.Contains(text, importPath) {
+		importMarker := "\n\t// gos:command-imports"
+		if !strings.Contains(text, importMarker) {
+			return nil, false, fmt.Errorf("command import marker not found")
+		}
+		text = strings.Replace(text, importMarker, "\n\tappcommand \""+importPath+"\""+importMarker, 1)
+	}
+
+	commandMarker := "\n\t// gos:commands"
+	if !strings.Contains(text, commandMarker) {
+		return nil, false, fmt.Errorf("command registry marker not found")
+	}
+	registration := fmt.Sprintf("\n\trootCmd.AddCommand(appcommand.%s())", data.FunctionName)
+	text = strings.Replace(text, commandMarker, registration+commandMarker, 1)
+
+	formatted, err := format.Source([]byte(text))
+	if err != nil {
+		return nil, false, fmt.Errorf("format registered command: %w", err)
+	}
+	return formatted, true, nil
+}
+
 const handlerTestTemplate = `package {{ .PackageName }}
 
 import (
@@ -1268,6 +1390,49 @@ func Test{{ .TypeName }}HandlerList(t *testing.T) {
 	}
 	if body["message"] != "success" {
 		t.Fatalf("expected message success, got %v", body["message"])
+	}
+}
+`
+
+const commandGoTemplate = `package {{ .PackageName }}
+
+import (
+	"log/slog"
+
+	"github.com/spf13/cobra"
+)
+
+func {{ .FunctionName }}() *cobra.Command {
+	return &cobra.Command{
+		Use:   "{{ .CommandName }}",
+		Short: "Run {{ .CommandName }} command",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+
+			slog.InfoContext(ctx, "command started", "command", "{{ .CommandName }}")
+			return nil
+		},
+	}
+}
+`
+
+const commandTestTemplate = `package {{ .PackageName }}
+
+import (
+	"context"
+	"testing"
+)
+
+func Test{{ .FunctionName }}(t *testing.T) {
+	command := {{ .FunctionName }}()
+	command.SetArgs([]string{})
+
+	if err := command.ExecuteContext(context.Background()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 `
