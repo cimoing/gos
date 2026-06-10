@@ -47,10 +47,19 @@ func TestProjectGeneratorGenerateAPIClean(t *testing.T) {
 		"internal/app/app.go",
 		"internal/app/assembly.go",
 		"internal/config/config.go",
+		"internal/infrastructure/cache/cache.go",
+		"internal/infrastructure/cache/cache_test.go",
+		"internal/infrastructure/cache/file.go",
+		"internal/infrastructure/cache/memcache.go",
+		"internal/infrastructure/cache/memory.go",
+		"internal/infrastructure/cache/redis.go",
 		"internal/infrastructure/database/database.go",
 		"internal/infrastructure/database/database_test.go",
 		"internal/infrastructure/database/mysql.go",
 		"internal/infrastructure/database/transaction.go",
+		"internal/infrastructure/lock/redis.go",
+		"internal/infrastructure/lock/redis_test.go",
+		"internal/infrastructure/redisclient/client.go",
 		"internal/interfaces/http/httperror/mapper.go",
 		"internal/interfaces/http/httperror/mapper_test.go",
 		"internal/interfaces/http/middleware/access_log.go",
@@ -115,9 +124,17 @@ func TestProjectGeneratorGenerateAPIClean(t *testing.T) {
 	assertFileContains(t, root, ".env.example", "CORS_ALLOWED_ORIGINS=*")
 	assertFileContains(t, root, ".env.example", "CORS_ALLOW_CREDENTIALS=false")
 	assertFileContains(t, root, ".env.example", "CORS_MAX_AGE=600")
+	assertFileContains(t, root, ".env.example", "CACHE_BACKEND=memory")
+	assertFileContains(t, root, ".env.example", "CACHE_MEMCACHE_SERVERS=127.0.0.1:11211")
+	assertFileContains(t, root, ".env.example", "LOCK_REDIS_KEY_PREFIX=demo:lock:")
+	assertFileContains(t, root, ".env.example", "LOCK_DEFAULT_TTL=30s")
 	assertFileContains(t, root, "internal/config/config.go", "ReadHeaderTimeout time.Duration")
 	assertFileContains(t, root, "internal/config/config.go", "MaxBodyBytes      int64")
 	assertFileContains(t, root, "internal/config/config.go", "type CORSConfig struct")
+	assertFileContains(t, root, "internal/config/config.go", "type CacheConfig struct")
+	assertFileContains(t, root, "internal/config/config.go", "type LockConfig struct")
+	assertFileContains(t, root, "internal/config/config.go", `cacheDefaultTTL, err := getEnvDuration("CACHE_DEFAULT_TTL", 5*time.Minute)`)
+	assertFileContains(t, root, "internal/config/config.go", `lockDefaultTTL, err := getEnvDuration("LOCK_DEFAULT_TTL", 30*time.Second)`)
 	assertFileContains(t, root, "internal/config/config.go", `getEnvCSV("CORS_ALLOWED_ORIGINS", []string{"*"})`)
 	assertFileContains(t, root, "internal/config/config.go", `corsAllowCredentials, err := getEnvBool("CORS_ALLOW_CREDENTIALS", false)`)
 	assertFileContains(t, root, "internal/config/config.go", `corsMaxAge, err := getEnvInt("CORS_MAX_AGE", 600)`)
@@ -149,9 +166,13 @@ func TestProjectGeneratorGenerateAPIClean(t *testing.T) {
 	assertFileContains(t, root, "cmd/api/main.go", "PersistentPreRunE")
 	assertFileNotContains(t, root, "internal/logging/logging.go", "trace_id")
 	assertFileContains(t, root, "go.mod", "github.com/go-sql-driver/mysql v1.10.0")
+	assertFileContains(t, root, "go.mod", "github.com/bradfitz/gomemcache v0.0.0-20260422231931-4d751bb6e37c")
+	assertFileContains(t, root, "go.mod", "github.com/redis/go-redis/v9 v9.20.0")
 	assertFileContains(t, root, "go.mod", "github.com/spf13/cobra v1.10.2")
 	assertFileContains(t, root, "go.mod", "filippo.io/edwards25519 v1.2.0 // indirect")
 	assertFileContains(t, root, "go.sum", "github.com/go-sql-driver/mysql v1.10.0 h1:")
+	assertFileContains(t, root, "go.sum", "github.com/bradfitz/gomemcache v0.0.0-20260422231931-4d751bb6e37c h1:")
+	assertFileContains(t, root, "go.sum", "github.com/redis/go-redis/v9 v9.20.0 h1:")
 	assertFileContains(t, root, "go.sum", "github.com/spf13/cobra v1.10.2 h1:")
 	assertFileContains(t, root, "go.sum", "github.com/spf13/pflag v1.0.9 h1:")
 	assertFileContains(t, root, "go.sum", "filippo.io/edwards25519 v1.2.0 h1:")
@@ -172,6 +193,11 @@ func TestProjectGeneratorGenerateAPIClean(t *testing.T) {
 	assertFileContains(t, root, "internal/app/assembly.go", "type Dependencies struct")
 	assertFileContains(t, root, "internal/app/assembly.go", "DB           *sql.DB")
 	assertFileContains(t, root, "internal/app/assembly.go", "Transactions *database.TxManager")
+	assertFileContains(t, root, "internal/app/assembly.go", "Cache        cache.Store")
+	assertFileContains(t, root, "internal/app/assembly.go", "Locker       lock.Locker")
+	assertFileContains(t, root, "internal/app/assembly.go", "redisclient.New(cfg.Redis)")
+	assertFileContains(t, root, "internal/app/assembly.go", "cache.NewStore(cache.Options{")
+	assertFileContains(t, root, "internal/app/assembly.go", "lock.NewRedisLocker(redisClient")
 	assertFileContains(t, root, "internal/app/assembly.go", "database.Open(ctx, cfg.Database)")
 	assertFileContains(t, root, "internal/app/assembly.go", "database.NewTxManager(db, database.TxOptions{")
 	assertFileContains(t, root, "internal/app/assembly.go", "EnableNestedTransaction: cfg.Database.EnableNestedTransaction")
@@ -189,6 +215,17 @@ func TestProjectGeneratorGenerateAPIClean(t *testing.T) {
 	assertFileContains(t, root, "internal/infrastructure/database/transaction.go", "SAVEPOINT ")
 	assertFileContains(t, root, "internal/infrastructure/database/transaction.go", "ROLLBACK TO SAVEPOINT ")
 	assertFileContains(t, root, "internal/infrastructure/database/transaction.go", "RELEASE SAVEPOINT ")
+	assertFileContains(t, root, "internal/infrastructure/cache/cache.go", "type Store interface")
+	assertFileContains(t, root, "internal/infrastructure/cache/cache.go", `case "", "memory":`)
+	assertFileContains(t, root, "internal/infrastructure/cache/cache.go", `case "file":`)
+	assertFileContains(t, root, "internal/infrastructure/cache/cache.go", `case "memcache":`)
+	assertFileContains(t, root, "internal/infrastructure/cache/cache.go", `case "redis":`)
+	assertFileContains(t, root, "internal/infrastructure/cache/cache_test.go", "TestMemoryStoreSetGetDelete")
+	assertFileContains(t, root, "internal/infrastructure/cache/cache_test.go", "TestFileStoreSetGetDelete")
+	assertFileContains(t, root, "internal/infrastructure/lock/redis.go", "type Locker interface")
+	assertFileContains(t, root, "internal/infrastructure/lock/redis.go", "SetNX(ctx, fullKey, token, ttl)")
+	assertFileContains(t, root, "internal/infrastructure/lock/redis.go", "PEXPIRE")
+	assertFileContains(t, root, "internal/infrastructure/redisclient/client.go", "redis.NewClient")
 	assertFileContains(t, root, "internal/interfaces/http/middleware/cors.go", "func CORS(options CORSOptions) Middleware")
 	assertFileContains(t, root, "internal/interfaces/http/middleware/recover.go", `"panic_type"`)
 	assertFileContains(t, root, "internal/interfaces/http/middleware/middleware_test.go", "TestCORSHandlesPreflight")

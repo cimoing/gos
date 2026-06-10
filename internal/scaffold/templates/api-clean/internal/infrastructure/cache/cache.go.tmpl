@@ -1,0 +1,50 @@
+package cache
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/redis/go-redis/v9"
+)
+
+type Store interface {
+	Get(ctx context.Context, key string) ([]byte, bool, error)
+	Set(ctx context.Context, key string, value []byte, ttl time.Duration) error
+	Delete(ctx context.Context, key string) error
+	Close() error
+}
+
+type Options struct {
+	Backend          string
+	FileDir          string
+	MemcacheServers  []string
+	RedisClient      *redis.Client
+	DefaultTTL       time.Duration
+}
+
+func NewStore(options Options) (Store, error) {
+	switch strings.ToLower(strings.TrimSpace(options.Backend)) {
+	case "", "memory":
+		return NewMemoryStore(options.DefaultTTL), nil
+	case "file":
+		return NewFileStore(options.FileDir, options.DefaultTTL), nil
+	case "memcache":
+		return NewMemcacheStore(options.MemcacheServers, options.DefaultTTL), nil
+	case "redis":
+		if options.RedisClient == nil {
+			return nil, fmt.Errorf("redis cache requires redis client")
+		}
+		return NewRedisStore(options.RedisClient, options.DefaultTTL), nil
+	default:
+		return nil, fmt.Errorf("unsupported cache backend %q", options.Backend)
+	}
+}
+
+func normalizeTTL(ttl time.Duration, defaultTTL time.Duration) time.Duration {
+	if ttl == 0 {
+		return defaultTTL
+	}
+	return ttl
+}

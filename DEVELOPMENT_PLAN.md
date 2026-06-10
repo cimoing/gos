@@ -78,6 +78,7 @@
 40. 生成项目安全默认值增强：CORS 配置化、日志敏感字段脱敏、panic 输出边界
 41. OpenAPI 基础深化：复用响应组件、列表响应 schema、错误响应引用和示例
 42. OpenAPI 领域 schema 生成：make:model/make:repository --openapi 根据字段 DSL 追加 components.schemas
+43. api-clean 缓存接口与 Redis 分布式锁：memory/file/memcache/redis cache Store，Redis Locker
 ```
 
 仍未完成：
@@ -2070,4 +2071,26 @@ v0.6.x 引入高级能力
 10. json=<name> 作为 schema property 名
 11. 非标准 OpenAPI 文件继续降级为 skipped
 12. docs/CLI_GUIDE.md、docs/GENERATED_PROJECT_GUIDE.md、生成项目 README 和 README.md 同步新参数说明
+```
+
+### 2026-06-10 Cache 与 Redis 分布式锁进度
+
+已完成：
+
+```text
+1. api-clean 模板新增 internal/infrastructure/cache
+2. cache.Store 支持 Get、Set、Delete、Close
+3. cache.NewStore 支持 memory、file、memcache、redis 后端
+4. memory cache 使用进程内 map、TTL 和拷贝保护
+5. file cache 使用 key sha256 文件名、JSON 记录和原子 rename 写入
+6. memcache cache 使用 github.com/bradfitz/gomemcache
+7. redis cache 使用 github.com/redis/go-redis/v9
+8. api-clean 模板新增 internal/infrastructure/redisclient
+9. api-clean 模板新增 internal/infrastructure/lock RedisLocker
+10. RedisLocker 使用 SetNX 获取锁，使用随机 token 标识持有者
+11. Release 和 Refresh 使用 Lua 脚本校验 token 后执行 DEL/PEXPIRE
+12. Config、.env.example 和 Docker Compose 增加 CACHE_* 与 LOCK_* 配置
+13. Docker Compose 增加 Memcache 服务
+14. app/assembly.go 组装 Redis client、Cache Store 和 Locker
+15. docs/CONFIG_REFERENCE.md、docs/GENERATED_PROJECT_GUIDE.md、docs/TEMPLATE_DEPENDENCIES.md、生成项目 README 和 docs/OPTIMIZATION_BACKLOG.md 同步说明
 ```

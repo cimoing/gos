@@ -1,0 +1,41 @@
+package lock
+
+import (
+	"context"
+	"testing"
+	"time"
+)
+
+func TestRedisLockerRejectsInvalidTTL(t *testing.T) {
+	locker := NewRedisLocker(nil, Options{})
+
+	_, err := locker.Acquire(context.Background(), "job", 0)
+	if err == nil {
+		t.Fatalf("Acquire() error = nil, want invalid ttl error")
+	}
+}
+
+func TestNewTokenReturnsUniqueTokens(t *testing.T) {
+	first, err := newToken()
+	if err != nil {
+		t.Fatalf("newToken() error = %v", err)
+	}
+	second, err := newToken()
+	if err != nil {
+		t.Fatalf("newToken() error = %v", err)
+	}
+	if first == "" || second == "" {
+		t.Fatalf("tokens must not be empty")
+	}
+	if first == second {
+		t.Fatalf("tokens must be unique")
+	}
+}
+
+func TestRefreshRejectsInvalidTTL(t *testing.T) {
+	lock := &RedisLock{}
+
+	if err := lock.Refresh(context.Background(), -time.Second); err == nil {
+		t.Fatalf("Refresh() error = nil, want invalid ttl error")
+	}
+}

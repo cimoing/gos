@@ -15,9 +15,13 @@ internal/config                  环境变量配置读取
 internal/domain                  领域实体和领域接口
 internal/usecase                 应用用例
 internal/interfaces/http         HTTP 路由、Handler、中间件、错误映射
+internal/infrastructure/cache    缓存接口和 memory/file/memcache/redis 实现
 internal/infrastructure/database database/sql 连接和事务管理
+internal/infrastructure/lock     Redis 分布式锁实现
 internal/infrastructure/persistence/mysql
                                   MySQL Repository 实现
+internal/infrastructure/redisclient
+                                  Redis client 构造
 internal/logging                 slog 日志初始化和可选 trace/span 字段注入
 internal/worker                  schedule/queue 后台 worker 生命周期骨架
 internal/pkg/apperror            应用错误
@@ -154,6 +158,12 @@ DB_ENABLE_NESTED_TRANSACTION
 REDIS_ADDR
 REDIS_PASSWORD
 REDIS_DB
+CACHE_BACKEND
+CACHE_FILE_DIR
+CACHE_MEMCACHE_SERVERS
+CACHE_DEFAULT_TTL
+LOCK_REDIS_KEY_PREFIX
+LOCK_DEFAULT_TTL
 LOG_LEVEL
 OTEL_ENABLED
 OTEL_SERVICE_NAME
@@ -196,6 +206,26 @@ DB_ENABLE_NESTED_TRANSACTION=false
 
 `DB_DSN` 为空时不会建立数据库连接，便于零依赖启动和运行纯单元测试。一旦业务路径调用 Repository 或 TxManager，就应该配置数据库。
 
+缓存配置：
+
+```bash
+CACHE_BACKEND=memory
+CACHE_FILE_DIR=.cache
+CACHE_MEMCACHE_SERVERS=127.0.0.1:11211
+CACHE_DEFAULT_TTL=5m
+```
+
+`internal/infrastructure/cache` 提供统一 `Store` 接口，支持 `memory`、`file`、`memcache`、`redis` 四种后端。`memory` 适合本地开发和单进程临时缓存；`file` 使用 key hash 落盘，适合轻量持久化；`memcache` 和 `redis` 适合多实例共享缓存。
+
+Redis 分布式锁配置：
+
+```bash
+LOCK_REDIS_KEY_PREFIX=myapp:lock:
+LOCK_DEFAULT_TTL=30s
+```
+
+`internal/infrastructure/lock` 提供 Redis `Locker`，使用 `SET NX EX/PX` 语义获取锁，并用 Lua 脚本保证 `Release` 与 `Refresh` 只作用于当前 token。锁适合短临界区、定时任务互斥和队列消费者互斥；长任务应主动 `Refresh` 或拆分执行粒度。
+
 使用 `gos new --with-otel` 生成的项目会包含 OpenTelemetry tracing 支持。默认不开启：
 
 ```bash
@@ -233,6 +263,18 @@ internal/app/assembly.go
 db, err := database.Open(ctx, cfg.Database)
 transactions := database.NewTxManager(db, database.TxOptions{
 	EnableNestedTransaction: cfg.Database.EnableNestedTransaction,
+})
+redisClient := redisclient.New(cfg.Redis)
+cacheStore, err := cache.NewStore(cache.Options{
+	Backend:         cfg.Cache.Backend,
+	FileDir:         cfg.Cache.FileDir,
+	MemcacheServers: cfg.Cache.MemcacheServers,
+	RedisClient:     redisClient,
+	DefaultTTL:      cfg.Cache.DefaultTTL,
+})
+locker := lock.NewRedisLocker(redisClient, lock.Options{
+	KeyPrefix:  cfg.Lock.RedisKeyPrefix,
+	DefaultTTL: cfg.Lock.DefaultTTL,
 })
 ```
 
@@ -272,6 +314,7 @@ invoiceHandler := handler.NewInvoiceHandler(createInvoice)
 3. App 层可以依赖所有层，用于最终组装。
 4. Usecase 不 import MySQL Repository。
 5. Handler 不直接 new Repository。
+6. 需要缓存或分布式锁时，通过 `Dependencies.Cache`、`Dependencies.Locker` 注入 Usecase，不在业务代码中直接创建客户端。
 ```
 
 ## 5. HTTP 层

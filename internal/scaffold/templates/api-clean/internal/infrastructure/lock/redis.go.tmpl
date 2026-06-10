@@ -1,0 +1,112 @@
+package lock
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
+	"time"
+
+	"github.com/redis/go-redis/v9"
+)
+
+type Locker interface {
+	Acquire(ctx context.Context, key string, ttl time.Duration) (Lock, error)
+}
+
+type Lock interface {
+	Key() string
+	Token() string
+	Release(ctx context.Context) error
+	Refresh(ctx context.Context, ttl time.Duration) error
+}
+
+type Options struct {
+	KeyPrefix  string
+	DefaultTTL time.Duration
+}
+
+type RedisLocker struct {
+	client     *redis.Client
+	keyPrefix  string
+	defaultTTL time.Duration
+}
+
+type RedisLock struct {
+	client *redis.Client
+	key    string
+	token  string
+}
+
+func NewRedisLocker(client *redis.Client, options Options) *RedisLocker {
+	return &RedisLocker{
+		client:     client,
+		keyPrefix:  options.KeyPrefix,
+		defaultTTL: options.DefaultTTL,
+	}
+}
+
+func (l *RedisLocker) Acquire(ctx context.Context, key string, ttl time.Duration) (Lock, error) {
+	if ttl == 0 {
+		ttl = l.defaultTTL
+	}
+	if ttl <= 0 {
+		return nil, fmt.Errorf("lock ttl must be greater than zero")
+	}
+	if l.client == nil {
+		return nil, fmt.Errorf("redis locker requires redis client")
+	}
+
+	token, err := newToken()
+	if err != nil {
+		return nil, err
+	}
+	fullKey := l.keyPrefix + key
+	ok, err := l.client.SetNX(ctx, fullKey, token, ttl).Result()
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, fmt.Errorf("lock %q is already held", key)
+	}
+	return &RedisLock{client: l.client, key: fullKey, token: token}, nil
+}
+
+func (l *RedisLock) Key() string {
+	return l.key
+}
+
+func (l *RedisLock) Token() string {
+	return l.token
+}
+
+func (l *RedisLock) Release(ctx context.Context) error {
+	const script = `
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+	return redis.call("DEL", KEYS[1])
+end
+return 0
+`
+	return l.client.Eval(ctx, script, []string{l.key}, l.token).Err()
+}
+
+func (l *RedisLock) Refresh(ctx context.Context, ttl time.Duration) error {
+	if ttl <= 0 {
+		return fmt.Errorf("lock ttl must be greater than zero")
+	}
+	const script = `
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+	return redis.call("PEXPIRE", KEYS[1], ARGV[2])
+end
+return 0
+`
+	return l.client.Eval(ctx, script, []string{l.key}, l.token, ttl.Milliseconds()).Err()
+}
+
+func newToken() (string, error) {
+	var data [16]byte
+	if _, err := rand.Read(data[:]); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(data[:]), nil
+}

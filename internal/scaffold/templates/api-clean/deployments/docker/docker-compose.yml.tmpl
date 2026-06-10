@@ -6,6 +6,7 @@ services:
     depends_on:
       - mysql
       - redis
+      - memcache
     environment:
       APP_NAME: {{ .AppName }}
       APP_ENV: local
@@ -26,6 +27,12 @@ services:
       REDIS_ADDR: redis:6379
       REDIS_PASSWORD: ""
       REDIS_DB: 0
+      CACHE_BACKEND: memory
+      CACHE_FILE_DIR: .cache
+      CACHE_MEMCACHE_SERVERS: memcache:11211
+      CACHE_DEFAULT_TTL: 5m
+      LOCK_REDIS_KEY_PREFIX: "{{ .AppName }}:lock:"
+      LOCK_DEFAULT_TTL: 30s
       LOG_LEVEL: info
     ports:
       - "8080:8080"
@@ -44,6 +51,11 @@ services:
     image: redis:7
     ports:
       - "6379:6379"
+
+  memcache:
+    image: memcached:1.6-alpine
+    ports:
+      - "11211:11211"
 
 volumes:
   mysql_data:

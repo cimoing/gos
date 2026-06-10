@@ -34,9 +34,20 @@
 | `DB_DRIVER` | string | `mysql` | 数据库 driver。 |
 | `DB_DSN` | string | 空字符串 | 为空时不建立数据库连接。 |
 | `DB_ENABLE_NESTED_TRANSACTION` | bool | `false` | 是否开启 savepoint 嵌套事务。 |
-| `REDIS_ADDR` | string | `127.0.0.1:6379` | Redis 地址，占位配置。 |
-| `REDIS_PASSWORD` | string | 空字符串 | Redis 密码，占位配置。 |
-| `REDIS_DB` | int | `0` | Redis DB，占位配置。 |
+| `REDIS_ADDR` | string | `127.0.0.1:6379` | Redis 地址，用于 Redis cache 和分布式锁。 |
+| `REDIS_PASSWORD` | string | 空字符串 | Redis 密码。 |
+| `REDIS_DB` | int | `0` | Redis DB。 |
+
+## api-clean 缓存与锁配置
+
+| 变量 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `CACHE_BACKEND` | enum | `memory` | 缓存后端，支持 `memory`、`file`、`memcache`、`redis`。 |
+| `CACHE_FILE_DIR` | string | `.cache` | 文件缓存目录，仅 `CACHE_BACKEND=file` 时使用。 |
+| `CACHE_MEMCACHE_SERVERS` | csv | `127.0.0.1:11211` | Memcache 服务地址列表，仅 `CACHE_BACKEND=memcache` 时使用。 |
+| `CACHE_DEFAULT_TTL` | duration | `5m` | 缓存默认 TTL，`Set` 传入 `0` 时使用该值。 |
+| `LOCK_REDIS_KEY_PREFIX` | string | `<app>:lock:` | Redis 分布式锁 key 前缀。 |
+| `LOCK_DEFAULT_TTL` | duration | `30s` | 分布式锁默认 TTL，`Acquire` 传入 `0` 时使用该值。 |
 
 ## OpenTelemetry 配置
 
@@ -65,6 +76,8 @@
 
 ```text
 REDIS_DB=abc                         -> parse REDIS_DB as int
+CACHE_DEFAULT_TTL=abc                -> parse CACHE_DEFAULT_TTL as duration
+LOCK_DEFAULT_TTL=abc                 -> parse LOCK_DEFAULT_TTL as duration
 DB_ENABLE_NESTED_TRANSACTION=maybe   -> parse DB_ENABLE_NESTED_TRANSACTION as bool
 HTTP_READ_TIMEOUT=abc                -> parse HTTP_READ_TIMEOUT as duration
 HTTP_MAX_BODY_BYTES=abc              -> parse HTTP_MAX_BODY_BYTES as int64

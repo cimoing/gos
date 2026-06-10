@@ -5,12 +5,19 @@ import (
 	"database/sql"
 
 	"{{ .ModulePath }}/internal/config"
+	"{{ .ModulePath }}/internal/infrastructure/cache"
 	"{{ .ModulePath }}/internal/infrastructure/database"
+	"{{ .ModulePath }}/internal/infrastructure/lock"
+	"{{ .ModulePath }}/internal/infrastructure/redisclient"
+	"github.com/redis/go-redis/v9"
 )
 
 type Dependencies struct {
 	DB           *sql.DB
 	Transactions *database.TxManager
+	Redis        *redis.Client
+	Cache        cache.Store
+	Locker       lock.Locker
 	// gos:dependencies
 }
 
@@ -26,19 +33,50 @@ func BuildDependencies(ctx context.Context, cfg config.Config) (Dependencies, er
 	transactions := database.NewTxManager(db, database.TxOptions{
 		EnableNestedTransaction: cfg.Database.EnableNestedTransaction,
 	})
+	redisClient := redisclient.New(cfg.Redis)
+	cacheStore, err := cache.NewStore(cache.Options{
+		Backend:         cfg.Cache.Backend,
+		FileDir:         cfg.Cache.FileDir,
+		MemcacheServers: cfg.Cache.MemcacheServers,
+		RedisClient:     redisClient,
+		DefaultTTL:      cfg.Cache.DefaultTTL,
+	})
+	if err != nil {
+		return Dependencies{}, err
+	}
+	locker := lock.NewRedisLocker(redisClient, lock.Options{
+		KeyPrefix:  cfg.Lock.RedisKeyPrefix,
+		DefaultTTL: cfg.Lock.DefaultTTL,
+	})
 
 	// gos:assemble
 
 	return Dependencies{
 		DB:           db,
 		Transactions: transactions,
+		Redis:        redisClient,
+		Cache:        cacheStore,
+		Locker:       locker,
 		// gos:return-dependencies
 	}, nil
 }
 
 func (d Dependencies) Close() error {
-	if d.DB == nil {
-		return nil
+	var err error
+	if d.Cache != nil {
+		if closeErr := d.Cache.Close(); closeErr != nil {
+			err = closeErr
+		}
 	}
-	return d.DB.Close()
+	if d.Redis != nil {
+		if closeErr := d.Redis.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}
+	if d.DB != nil {
+		if closeErr := d.DB.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}
+	return err
 }

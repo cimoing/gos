@@ -1,0 +1,70 @@
+package cache
+
+import (
+	"context"
+	"time"
+
+	"github.com/bradfitz/gomemcache/memcache"
+)
+
+type MemcacheStore struct {
+	client     *memcache.Client
+	defaultTTL time.Duration
+}
+
+func NewMemcacheStore(servers []string, defaultTTL time.Duration) *MemcacheStore {
+	if len(servers) == 0 {
+		servers = []string{"127.0.0.1:11211"}
+	}
+	return &MemcacheStore{
+		client:     memcache.New(servers...),
+		defaultTTL: defaultTTL,
+	}
+}
+
+func (s *MemcacheStore) Get(ctx context.Context, key string) ([]byte, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, false, err
+	}
+	item, err := s.client.Get(key)
+	if err == memcache.ErrCacheMiss {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return append([]byte(nil), item.Value...), true, nil
+}
+
+func (s *MemcacheStore) Set(ctx context.Context, key string, value []byte, ttl time.Duration) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return s.client.Set(&memcache.Item{
+		Key:        key,
+		Value:      append([]byte(nil), value...),
+		Expiration: memcacheExpiration(normalizeTTL(ttl, s.defaultTTL)),
+	})
+}
+
+func (s *MemcacheStore) Delete(ctx context.Context, key string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	err := s.client.Delete(key)
+	if err == memcache.ErrCacheMiss {
+		return nil
+	}
+	return err
+}
+
+func (s *MemcacheStore) Close() error {
+	return nil
+}
+
+func memcacheExpiration(ttl time.Duration) int32 {
+	if ttl <= 0 {
+		return 0
+	}
+	return int32(ttl.Seconds())
+}

@@ -1,0 +1,79 @@
+package cache
+
+import (
+	"context"
+	"sync"
+	"time"
+)
+
+type memoryEntry struct {
+	value     []byte
+	expiresAt time.Time
+}
+
+type MemoryStore struct {
+	mu         sync.RWMutex
+	items      map[string]memoryEntry
+	defaultTTL time.Duration
+}
+
+func NewMemoryStore(defaultTTL time.Duration) *MemoryStore {
+	return &MemoryStore{
+		items:      map[string]memoryEntry{},
+		defaultTTL: defaultTTL,
+	}
+}
+
+func (s *MemoryStore) Get(ctx context.Context, key string) ([]byte, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, false, err
+	}
+
+	s.mu.RLock()
+	entry, ok := s.items[key]
+	s.mu.RUnlock()
+	if !ok {
+		return nil, false, nil
+	}
+	if !entry.expiresAt.IsZero() && time.Now().After(entry.expiresAt) {
+		_ = s.Delete(ctx, key)
+		return nil, false, nil
+	}
+
+	value := append([]byte(nil), entry.value...)
+	return value, true, nil
+}
+
+func (s *MemoryStore) Set(ctx context.Context, key string, value []byte, ttl time.Duration) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	var expiresAt time.Time
+	if ttl = normalizeTTL(ttl, s.defaultTTL); ttl > 0 {
+		expiresAt = time.Now().Add(ttl)
+	}
+
+	s.mu.Lock()
+	s.items[key] = memoryEntry{
+		value:     append([]byte(nil), value...),
+		expiresAt: expiresAt,
+	}
+	s.mu.Unlock()
+	return nil
+}
+
+func (s *MemoryStore) Delete(ctx context.Context, key string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	delete(s.items, key)
+	s.mu.Unlock()
+	return nil
+}
+
+func (s *MemoryStore) Close() error {
+	return nil
+}

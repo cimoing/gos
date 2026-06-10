@@ -49,6 +49,9 @@
 
 13. OpenAPI 领域 schema 生成
    gos make:model --openapi 与 gos make:repository --openapi 已支持根据字段 DSL 向 components.schemas 追加实体 schema，覆盖 string/int/int64/bool/time、nullable、size 和 json 字段名。
+
+14. 缓存接口与 Redis 分布式锁
+   api-clean 已生成 internal/infrastructure/cache，提供 memory、file、memcache、redis 四种 Store 实现；同时生成 internal/infrastructure/lock，提供基于 Redis SET NX 和 Lua token 校验的分布式锁。配置、Docker Compose、依赖组装和模板测试已同步。
 ```
 
 ## 中优先级

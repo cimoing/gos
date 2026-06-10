@@ -64,7 +64,7 @@
 
 ---
 
-## 当前实现状态（2026-06-09）
+## 当前实现状态（2026-06-10）
 
 当前仓库已实现一个可运行的 `gos` CLI，并内置 `api-clean` 与 `api-minimal` 项目模板。
 
@@ -105,8 +105,10 @@ gos completion <bash|zsh|fish|powershell>
 17. gos completion 支持 bash、zsh、fish、powershell
 18. 安全默认值增强：CORS 配置化、日志敏感字段脱敏、panic 输出边界
 19. OpenAPI 基础深化：复用响应组件、列表响应 schema、错误响应引用和示例
-20. Dockerfile、Docker Compose
-21. GitHub Actions CI
+20. 缓存接口：memory、file、memcache、redis 后端
+21. Redis 分布式锁：SetNX 获取锁，Lua token 校验释放和续期
+22. Dockerfile、Docker Compose
+23. GitHub Actions CI
 ```
 
 `api-minimal` 当前包含：

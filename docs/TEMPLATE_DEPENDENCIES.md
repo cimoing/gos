@@ -8,7 +8,9 @@
 
 ```text
 api-clean
+  github.com/bradfitz/gomemcache  Memcache cache backend
   github.com/go-sql-driver/mysql
+  github.com/redis/go-redis/v9     Redis cache backend and distributed lock
   github.com/spf13/cobra
   github.com/XSAM/otelsql         仅 --with-otel，用于 database/sql tracing
   go.opentelemetry.io/*            仅 --with-otel

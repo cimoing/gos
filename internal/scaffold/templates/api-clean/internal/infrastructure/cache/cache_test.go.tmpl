@@ -1,0 +1,78 @@
+package cache
+
+import (
+	"bytes"
+	"context"
+	"testing"
+	"time"
+)
+
+func TestMemoryStoreSetGetDelete(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore(time.Minute)
+
+	if err := store.Set(ctx, "key", []byte("value"), 0); err != nil {
+		t.Fatalf("Set() error = %v", err)
+	}
+	got, ok, err := store.Get(ctx, "key")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if !ok || !bytes.Equal(got, []byte("value")) {
+		t.Fatalf("Get() = %q, %v; want value, true", got, ok)
+	}
+	if err := store.Delete(ctx, "key"); err != nil {
+		t.Fatalf("Delete() error = %v", err)
+	}
+	_, ok, err = store.Get(ctx, "key")
+	if err != nil {
+		t.Fatalf("Get() after delete error = %v", err)
+	}
+	if ok {
+		t.Fatalf("Get() after delete ok = true, want false")
+	}
+}
+
+func TestMemoryStoreExpires(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore(time.Millisecond)
+
+	if err := store.Set(ctx, "key", []byte("value"), 0); err != nil {
+		t.Fatalf("Set() error = %v", err)
+	}
+	time.Sleep(2 * time.Millisecond)
+
+	_, ok, err := store.Get(ctx, "key")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if ok {
+		t.Fatalf("Get() ok = true, want expired cache miss")
+	}
+}
+
+func TestFileStoreSetGetDelete(t *testing.T) {
+	ctx := context.Background()
+	store := NewFileStore(t.TempDir(), time.Minute)
+
+	if err := store.Set(ctx, "key/with/slash", []byte("value"), 0); err != nil {
+		t.Fatalf("Set() error = %v", err)
+	}
+	got, ok, err := store.Get(ctx, "key/with/slash")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if !ok || !bytes.Equal(got, []byte("value")) {
+		t.Fatalf("Get() = %q, %v; want value, true", got, ok)
+	}
+	if err := store.Delete(ctx, "key/with/slash"); err != nil {
+		t.Fatalf("Delete() error = %v", err)
+	}
+	_, ok, err = store.Get(ctx, "key/with/slash")
+	if err != nil {
+		t.Fatalf("Get() after delete error = %v", err)
+	}
+	if ok {
+		t.Fatalf("Get() after delete ok = true, want false")
+	}
+}
