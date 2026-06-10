@@ -3,6 +3,9 @@ module {{ .ModulePath }}
 go 1.25.0
 
 require (
+{{- if .WithOpenTelemetry }}
+	github.com/XSAM/otelsql v0.42.0
+{{- end }}
 	github.com/go-sql-driver/mysql v1.10.0
 	github.com/spf13/cobra v1.10.2
 {{- if .WithOpenTelemetry }}

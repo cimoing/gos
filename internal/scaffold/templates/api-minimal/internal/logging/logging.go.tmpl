@@ -1,0 +1,80 @@
+package logging
+
+import (
+{{- if .WithOpenTelemetry }}
+	"context"
+{{- end }}
+	"fmt"
+	"io"
+	"log/slog"
+	"os"
+	"strings"
+
+	"{{ .ModulePath }}/internal/config"
+{{- if .WithOpenTelemetry }}
+	"go.opentelemetry.io/otel/trace"
+{{- end }}
+)
+
+func New(cfg config.LogConfig) (*slog.Logger, error) {
+	return NewWithWriter(cfg, os.Stdout)
+}
+
+func NewWithWriter(cfg config.LogConfig, writer io.Writer) (*slog.Logger, error) {
+	level, err := parseLevel(cfg.Level)
+	if err != nil {
+		return nil, err
+	}
+
+	var handler slog.Handler = slog.NewJSONHandler(writer, &slog.HandlerOptions{
+		Level: level,
+	})
+{{ if .WithOpenTelemetry }}
+	handler = traceHandler{next: handler}
+{{- end }}
+
+	return slog.New(handler), nil
+}
+
+func parseLevel(value string) (slog.Level, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "info":
+		return slog.LevelInfo, nil
+	case "debug":
+		return slog.LevelDebug, nil
+	case "warn", "warning":
+		return slog.LevelWarn, nil
+	case "error":
+		return slog.LevelError, nil
+	default:
+		return slog.LevelInfo, fmt.Errorf("unsupported log level %q", value)
+	}
+}
+{{ if .WithOpenTelemetry }}
+type traceHandler struct {
+	next slog.Handler
+}
+
+func (h traceHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return h.next.Enabled(ctx, level)
+}
+
+func (h traceHandler) Handle(ctx context.Context, record slog.Record) error {
+	spanContext := trace.SpanContextFromContext(ctx)
+	if spanContext.IsValid() {
+		record.AddAttrs(
+			slog.String("trace_id", spanContext.TraceID().String()),
+			slog.String("span_id", spanContext.SpanID().String()),
+		)
+	}
+	return h.next.Handle(ctx, record)
+}
+
+func (h traceHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return traceHandler{next: h.next.WithAttrs(attrs)}
+}
+
+func (h traceHandler) WithGroup(name string) slog.Handler {
+	return traceHandler{next: h.next.WithGroup(name)}
+}
+{{ end }}

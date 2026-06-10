@@ -12,17 +12,16 @@ import (
 )
 
 type RouterOptions struct {
-	TraceHTTP   bool
-	ServiceName string
+	TraceHTTP    bool
+	ServiceName  string
+	MaxBodyBytes int64
 }
 
 func NewRouter(options ...RouterOptions) http.Handler {
-{{- if .WithOpenTelemetry }}
 	var opts RouterOptions
 	if len(options) > 0 {
 		opts = options[0]
 	}
-{{- end }}
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -39,6 +38,9 @@ func NewRouter(options ...RouterOptions) http.Handler {
 		middleware.AccessLog(),
 		middleware.Timeout(10*time.Second),
 	)
+	if opts.MaxBodyBytes > 0 {
+		handler = http.MaxBytesHandler(handler, opts.MaxBodyBytes)
+	}
 {{ if .WithOpenTelemetry }}
 	if opts.TraceHTTP {
 		return otelhttp.NewHandler(handler, opts.ServiceName)

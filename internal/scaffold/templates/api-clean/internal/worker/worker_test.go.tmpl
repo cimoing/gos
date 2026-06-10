@@ -1,0 +1,63 @@
+package worker
+
+import (
+	"context"
+	"io"
+	"log/slog"
+	"testing"
+	"time"
+)
+
+func TestSchedulerRunsTaskImmediately(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ran := 0
+	scheduler := NewScheduler(testLogger(), time.Hour, Task{
+		Name: "test",
+		Run: func(ctx context.Context) error {
+			ran++
+			cancel()
+			return nil
+		},
+	})
+
+	if err := scheduler.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if ran != 1 {
+		t.Fatalf("task ran %d times, want 1", ran)
+	}
+}
+
+func TestQueueWorkerRunsProcessor(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ran := 0
+	worker := NewQueueWorker(testLogger(), time.Nanosecond, func(ctx context.Context) error {
+		ran++
+		cancel()
+		return nil
+	})
+
+	if err := worker.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if ran == 0 {
+		t.Fatalf("processor was not called")
+	}
+}
+
+func TestRunSafelyRecoversPanic(t *testing.T) {
+	err := runSafely(context.Background(), func(ctx context.Context) error {
+		panic("boom")
+	})
+	if err == nil {
+		t.Fatalf("runSafely() error = nil, want panic error")
+	}
+}
+
+func testLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}

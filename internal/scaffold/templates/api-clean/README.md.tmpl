@@ -20,7 +20,7 @@ Health check:
 curl http://127.0.0.1:8080/healthz
 ```
 
-`go run ./cmd/api` defaults to `serve`. Commands are implemented with Cobra. `schedule` and `queue` are executable worker entrypoints with placeholder loops that you can wire to cron-like jobs or queue consumers.
+`go run ./cmd/api` defaults to `serve`. Commands are implemented with Cobra. `schedule` and `queue` are executable worker entrypoints backed by `internal/worker`, which provides common lifecycle logging, periodic execution, error logging, and panic recovery.
 
 `Makefile` is included as an optional convenience only. The project does not require a local `make` command.
 
@@ -38,6 +38,7 @@ internal/interfaces/http         router, handlers, middleware, HTTP error mappin
 internal/infrastructure/database database/sql connection and transaction manager
 internal/infrastructure/persistence/mysql
                                   MySQL repository implementations
+internal/worker                  scheduled job and queue worker lifecycle helpers
 internal/pkg/apperror            application errors
 internal/pkg/response            JSON response helpers
 deployments/docker               Dockerfile and Compose files
@@ -95,6 +96,12 @@ Configuration is read from environment variables into `internal/config.Config`.
 APP_NAME
 APP_ENV
 HTTP_ADDR
+HTTP_READ_HEADER_TIMEOUT
+HTTP_READ_TIMEOUT
+HTTP_WRITE_TIMEOUT
+HTTP_IDLE_TIMEOUT
+HTTP_MAX_HEADER_BYTES
+HTTP_MAX_BODY_BYTES
 DB_DRIVER
 DB_DSN
 DB_ENABLE_NESTED_TRANSACTION
@@ -121,6 +128,10 @@ DB_ENABLE_NESTED_TRANSACTION=false
 ```
 
 Application and usecase code should receive configuration through constructors or assembled dependencies, not by calling `os.Getenv` directly.
+
+Logging is initialized from `internal/logging` during startup. `LOG_LEVEL` supports `debug`, `info`, `warn`, `warning`, and `error`; logs are emitted as JSON to stdout.{{ if .WithOpenTelemetry }} When tracing is enabled, log records automatically include `trace_id` and `span_id` when the current context carries a valid span.{{ end }}
+
+Boolean, integer, int64, and duration environment variables are parsed strictly. Invalid values such as `REDIS_DB=abc`, `DB_ENABLE_NESTED_TRANSACTION=maybe`, or `HTTP_READ_TIMEOUT=abc` fail during startup instead of silently falling back to defaults. `HTTP_MAX_BODY_BYTES=0` disables request body size limiting.
 {{ if .WithOpenTelemetry }}
 ## 7. Observability
 
@@ -133,7 +144,7 @@ OTEL_EXPORTER_OTLP_ENDPOINT=localhost:4318
 OTEL_EXPORTER_OTLP_INSECURE=true
 ```
 
-When enabled, startup configures an OTLP HTTP trace exporter and wraps the HTTP router with `otelhttp`.
+When enabled, startup configures an OTLP HTTP trace exporter, wraps the HTTP router with `otelhttp`, provides a traced HTTP client helper, and opens database/sql connections through `github.com/XSAM/otelsql`.
 {{ end }}
 
 ## {{ if .WithOpenTelemetry }}8{{ else }}7{{ end }}. API contract

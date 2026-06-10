@@ -1,18 +1,33 @@
 package config
 
 import (
+	"fmt"
 	"os"
-{{- if .WithOpenTelemetry }}
 	"strconv"
-{{- end }}
+	"time"
 )
 
 type Config struct {
-	AppName  string
-	HTTPAddr string
+	AppName string
+	HTTP    HTTPConfig
+	Log     LogConfig
 {{- if .WithOpenTelemetry }}
 	Observability ObservabilityConfig
 {{- end }}
+}
+
+type HTTPConfig struct {
+	Addr              string
+	ReadHeaderTimeout time.Duration
+	ReadTimeout       time.Duration
+	WriteTimeout      time.Duration
+	IdleTimeout       time.Duration
+	MaxHeaderBytes    int
+	MaxBodyBytes      int64
+}
+
+type LogConfig struct {
+	Level string
 }
 {{ if .WithOpenTelemetry }}
 type ObservabilityConfig struct {
@@ -23,19 +38,65 @@ type ObservabilityConfig struct {
 }
 {{ end }}
 
-func Load() Config {
+func Load() (Config, error) {
+	httpReadHeaderTimeout, err := getEnvDuration("HTTP_READ_HEADER_TIMEOUT", 5*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+	httpReadTimeout, err := getEnvDuration("HTTP_READ_TIMEOUT", 15*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+	httpWriteTimeout, err := getEnvDuration("HTTP_WRITE_TIMEOUT", 30*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+	httpIdleTimeout, err := getEnvDuration("HTTP_IDLE_TIMEOUT", 60*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+	httpMaxHeaderBytes, err := getEnvInt("HTTP_MAX_HEADER_BYTES", 1<<20)
+	if err != nil {
+		return Config{}, err
+	}
+	httpMaxBodyBytes, err := getEnvInt64("HTTP_MAX_BODY_BYTES", 10<<20)
+	if err != nil {
+		return Config{}, err
+	}
+{{- if .WithOpenTelemetry }}
+	otelEnabled, err := getEnvBool("OTEL_ENABLED", false)
+	if err != nil {
+		return Config{}, err
+	}
+	otelInsecure, err := getEnvBool("OTEL_EXPORTER_OTLP_INSECURE", true)
+	if err != nil {
+		return Config{}, err
+	}
+{{- end }}
+
 	return Config{
-		AppName:  getEnv("APP_NAME", "{{ .AppName }}"),
-		HTTPAddr: getEnv("HTTP_ADDR", ":8080"),
+		AppName: getEnv("APP_NAME", "{{ .AppName }}"),
+		HTTP: HTTPConfig{
+			Addr:              getEnv("HTTP_ADDR", ":8080"),
+			ReadHeaderTimeout: httpReadHeaderTimeout,
+			ReadTimeout:       httpReadTimeout,
+			WriteTimeout:      httpWriteTimeout,
+			IdleTimeout:       httpIdleTimeout,
+			MaxHeaderBytes:    httpMaxHeaderBytes,
+			MaxBodyBytes:      httpMaxBodyBytes,
+		},
+		Log: LogConfig{
+			Level: getEnv("LOG_LEVEL", "info"),
+		},
 {{- if .WithOpenTelemetry }}
 		Observability: ObservabilityConfig{
-			Enabled:      getEnvBool("OTEL_ENABLED", false),
+			Enabled:      otelEnabled,
 			ServiceName:  getEnv("OTEL_SERVICE_NAME", "{{ .AppName }}"),
 			OTLPEndpoint: getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4318"),
-			OTLPInsecure: getEnvBool("OTEL_EXPORTER_OTLP_INSECURE", true),
+			OTLPInsecure: otelInsecure,
 		},
 {{- end }}
-	}
+	}, nil
 }
 
 func getEnv(key string, fallback string) string {
@@ -45,17 +106,55 @@ func getEnv(key string, fallback string) string {
 	}
 	return value
 }
-{{ if .WithOpenTelemetry }}
-func getEnvBool(key string, fallback bool) bool {
+
+func getEnvInt(key string, fallback int) (int, error) {
 	value := os.Getenv(key)
 	if value == "" {
-		return fallback
+		return fallback, nil
+	}
+
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, fmt.Errorf("parse %s as int: %w", key, err)
+	}
+	return parsed, nil
+}
+
+func getEnvInt64(key string, fallback int64) (int64, error) {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback, nil
+	}
+
+	parsed, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("parse %s as int64: %w", key, err)
+	}
+	return parsed, nil
+}
+
+func getEnvBool(key string, fallback bool) (bool, error) {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback, nil
 	}
 
 	parsed, err := strconv.ParseBool(value)
 	if err != nil {
-		return fallback
+		return false, fmt.Errorf("parse %s as bool: %w", key, err)
 	}
-	return parsed
+	return parsed, nil
 }
-{{ end }}
+
+func getEnvDuration(key string, fallback time.Duration) (time.Duration, error) {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback, nil
+	}
+
+	parsed, err := time.ParseDuration(value)
+	if err != nil {
+		return 0, fmt.Errorf("parse %s as duration: %w", key, err)
+	}
+	return parsed, nil
+}

@@ -9,25 +9,28 @@ import (
 )
 
 type RouterOptions struct {
-	TraceHTTP   bool
-	ServiceName string
+	TraceHTTP    bool
+	ServiceName  string
+	MaxBodyBytes int64
 }
 
 func NewRouter(options ...RouterOptions) http.Handler {
-{{- if .WithOpenTelemetry }}
 	var opts RouterOptions
 	if len(options) > 0 {
 		opts = options[0]
 	}
-{{- end }}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", Healthz)
+	var handler http.Handler = mux
+	if opts.MaxBodyBytes > 0 {
+		handler = http.MaxBytesHandler(handler, opts.MaxBodyBytes)
+	}
 {{ if .WithOpenTelemetry }}
 	if opts.TraceHTTP {
-		return otelhttp.NewHandler(mux, opts.ServiceName)
+		return otelhttp.NewHandler(handler, opts.ServiceName)
 	}
 {{ end }}
-	return mux
+	return handler
 }
 
 func Healthz(w http.ResponseWriter, r *http.Request) {

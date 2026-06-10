@@ -14,10 +14,25 @@
 3. docs/OPEN_TELEMETRY.md
    了解 gos new --with-otel 生成的 OpenTelemetry tracing 能力、配置、代码落点和验证方式。
 
-4. README.md
+4. docs/OPTIMIZATION_BACKLOG.md
+   查看后续优化清单、优先级和建议推进顺序。
+
+5. docs/CONFIG_REFERENCE.md
+   查看生成项目环境变量、默认值、类型和非法值行为。
+
+6. docs/TEMPLATE_DEPENDENCIES.md
+   查看 go.mod.tmpl/go.sum.tmpl 依赖刷新流程。
+
+7. docs/RELEASE.md
+   查看 gos CLI 构建、版本注入、shell completion 和发布前检查。
+
+8. docs/LOCAL_OBSERVABILITY.md
+   查看 --with-otel 项目的本地 Collector、Jaeger、外部 HTTP client 和数据库 tracing 示例。
+
+9. README.md
    阅读整体设计原则、架构取舍和后续路线图。
 
-5. DEVELOPMENT_PLAN.md
+10. DEVELOPMENT_PLAN.md
    查看开发进度、版本路线和已完成能力。
 ```
 
@@ -49,7 +64,7 @@
 
 ---
 
-## 当前实现状态（2026-06-05）
+## 当前实现状态（2026-06-09）
 
 当前仓库已实现一个可运行的 `gos` CLI，并内置 `api-clean` 与 `api-minimal` 项目模板。
 
@@ -64,6 +79,8 @@ gos make:repository <module> [--module=<module-path>] [--db=mysql] [--table=<tab
 gos make:migration <name> [--dir=migrations] [--force] [--dry-run]
 gos make:test <usecase|handler|repository> <name> [--module=<module-path>] [--force] [--dry-run]
 gos make:command <name> [--module=<module-path>] [--register] [--force] [--dry-run]
+gos version
+gos completion <bash|zsh|fish|powershell>
 ```
 
 `api-clean` 当前包含：
@@ -77,9 +94,17 @@ gos make:command <name> [--module=<module-path>] [--register] [--force] [--dry-r
 6. MySQL Repository 代码生成、集成测试模板和迁移文件生成
 7. cmd/api 子命令入口：serve、schedule、queue
 8. 基于 Cobra 的命令脚本生成与自动注册
-9. 可选 OpenTelemetry tracing 支持
-10. Dockerfile、Docker Compose
-11. GitHub Actions CI
+9. 可选 OpenTelemetry tracing 支持，包括 HTTP server、外部 HTTP client 和 database/sql
+10. 生成项目日志配置支持 LOG_LEVEL，并在 OTEL 启用时注入 trace_id/span_id
+11. 脚手架自身 CLI 基于 Cobra 组织命令
+12. 生成项目模板矩阵编译验证
+13. 生成项目配置读取对 bool/int 使用严格解析，非法环境变量启动即失败
+14. 生成项目 HTTP server 默认配置 Read/Write/Idle timeout 和 MaxHeaderBytes
+15. 生成项目 HTTP_MAX_BODY_BYTES 请求体大小限制
+16. gos version 支持版本、commit、构建时间输出
+17. gos completion 支持 bash、zsh、fish、powershell
+18. Dockerfile、Docker Compose
+19. GitHub Actions CI
 ```
 
 `api-minimal` 当前包含：
@@ -1642,9 +1667,11 @@ DB_ENABLE_NESTED_TRANSACTION=false
 2. Recover 中间件记录 panic
 3. Infrastructure 层记录外部系统异常
 4. Usecase 层只记录关键业务行为
-5. 日志中应包含 request_id 或 trace_id
+5. 日志中应包含 request_id；启用 OpenTelemetry 时自动补充 trace_id 和 span_id
 6. 不在日志中记录明文密码、Token、密钥等敏感信息
 ```
+
+当前生成项目会生成 `internal/logging` 包，启动阶段读取 `LOG_LEVEL` 创建 `slog` JSON logger，并通过 `slog.SetDefault` 让 HTTP 中间件、生成命令和业务代码共享同一套日志配置。`LOG_LEVEL` 支持 `debug`、`info`、`warn`、`warning`、`error`。
 
 推荐中间件：
 
@@ -1834,6 +1861,8 @@ gos make:repository <module> [--module=<module-path>] [--db=mysql] [--table=<tab
 gos make:migration <name> [--dir=migrations] [--force] [--dry-run]
 gos make:test <usecase|handler|repository> <name> [--module=<module-path>] [--force] [--dry-run]
 gos make:command <name> [--module=<module-path>] [--register] [--force] [--dry-run]
+gos version
+gos completion <bash|zsh|fish|powershell>
 ```
 
 示例：

@@ -11,6 +11,8 @@ import (
 
 	"{{ .ModulePath }}/internal/app"
 	"{{ .ModulePath }}/internal/config"
+	"{{ .ModulePath }}/internal/logging"
+	"{{ .ModulePath }}/internal/worker"
 	"github.com/spf13/cobra"
 	// gos:command-imports
 )
@@ -28,6 +30,9 @@ func newRootCommand(ctx context.Context) *cobra.Command {
 		Args:          cobra.NoArgs,
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return configureLogging()
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runServe(cmd.Context())
 		},
@@ -40,6 +45,19 @@ func newRootCommand(ctx context.Context) *cobra.Command {
 	// gos:commands
 
 	return rootCmd
+}
+
+func configureLogging() error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	logger, err := logging.New(cfg.Log)
+	if err != nil {
+		return err
+	}
+	slog.SetDefault(logger)
+	return nil
 }
 
 func newServeCommand() *cobra.Command {
@@ -93,55 +111,39 @@ func runSchedule(ctx context.Context) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	logger.Info("scheduler started")
-
-	ticker := time.NewTicker(time.Minute)
-	defer ticker.Stop()
-
-	runScheduledJobs(ctx, logger)
-	for {
-		select {
-		case <-ctx.Done():
-			logger.Info("scheduler stopped")
-			return nil
-		case <-ticker.C:
-			runScheduledJobs(ctx, logger)
-		}
+	if _, err := config.Load(); err != nil {
+		return err
 	}
+	scheduler := worker.NewScheduler(slog.Default(), time.Minute, worker.Task{
+		Name: "default",
+		Run:  runScheduledJobs,
+	})
+	return scheduler.Run(ctx)
 }
 
-func runScheduledJobs(ctx context.Context, logger *slog.Logger) {
+func runScheduledJobs(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
-		return
+		return err
 	}
-	logger.Info("scheduled jobs tick")
+	slog.DebugContext(ctx, "scheduled jobs tick")
+	return nil
 }
 
 func runQueue(ctx context.Context) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	logger.Info("queue worker started")
-
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			logger.Info("queue worker stopped")
-			return nil
-		case <-ticker.C:
-			processQueueOnce(ctx, logger)
-		}
+	if _, err := config.Load(); err != nil {
+		return err
 	}
+	queueWorker := worker.NewQueueWorker(slog.Default(), time.Second, processQueueOnce)
+	return queueWorker.Run(ctx)
 }
 
-func processQueueOnce(ctx context.Context, logger *slog.Logger) {
+func processQueueOnce(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
-		return
+		return err
 	}
-	logger.Debug("queue worker tick")
+	slog.DebugContext(ctx, "queue worker tick")
+	return nil
 }

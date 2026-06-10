@@ -59,12 +59,29 @@
 21. 基于 Cobra 的 cmd/api 子命令模板：serve、schedule、queue
 22. 基于 Cobra 的 gos make:command <name>，支持 --register、--force、--dry-run
 23. gos new --with-otel 可选 OpenTelemetry tracing 支持
+24. 生成项目 internal/logging 日志初始化，LOG_LEVEL 生效
+25. OpenTelemetry 启用时日志自动注入 trace_id/span_id
+26. 脚手架自身 CLI 基于 Cobra 组织命令
+27. api-clean/api-minimal 与 OTEL 开关组合的生成项目矩阵编译验证
+28. 生成项目 bool/int 环境变量严格解析，非法配置启动即失败
+29. 生成项目 internal/worker 后台任务/队列生命周期骨架
+30. 生成项目 HTTP server 生产默认值支持配置化 timeout 和 MaxHeaderBytes
+31. docs/CONFIG_REFERENCE.md 配置参考表
+32. docs/TEMPLATE_DEPENDENCIES.md 模板依赖刷新流程
+33. gos version 支持版本、commit、构建时间输出
+34. 生成项目 HTTP_MAX_BODY_BYTES 请求体大小限制
+35. gos completion 支持 bash、zsh、fish、powershell
+36. docs/RELEASE.md 发布说明
+37. --with-otel 生成 observability.NewHTTPClient/NewHTTPTransport
+38. docs/LOCAL_OBSERVABILITY.md 本地可观测环境示例
+39. api-clean --with-otel 使用 otelsql 支持 database/sql tracing
 ```
 
 仍未完成：
 
 ```text
 1. README/DEVELOPMENT_PLAN 旧设计段落的进一步归档整理
+2. docs/OPTIMIZATION_BACKLOG.md 中记录的后续工程增强项
 ```
 
 ---
@@ -1871,4 +1888,131 @@ v0.6.x 引入高级能力
 5. api-clean --with-otel 生成项目 go build ./cmd/api 通过
 6. 默认 api-minimal 生成项目不包含 OpenTelemetry 依赖和 internal/observability
 7. 默认 api-minimal 生成项目 go test ./... 与 go build ./cmd/api 通过
+```
+
+### 2026-06-05 高优先级工程增强进度
+
+已完成：
+
+```text
+1. api-clean 模板新增 internal/logging/logging.go
+2. api-minimal 模板新增 internal/logging/logging.go
+3. LOG_LEVEL 在生成项目启动阶段真正生效，支持 debug/info/warn/warning/error
+4. 生成项目启动时调用 slog.SetDefault，让中间件、命令脚本和业务日志共享默认 logger
+5. 使用 --with-otel 时 logging handler 从 context 注入 trace_id/span_id
+6. gos CLI 自身改为基于 Cobra 的 root/subcommand 结构
+7. 保留现有 runNew/runMake* 逻辑，降低迁移风险
+8. 新增生成项目矩阵编译测试，覆盖 api-clean、api-clean --with-otel、api-minimal、api-minimal --with-otel
+9. api-clean 配置中的 DB_ENABLE_NESTED_TRANSACTION、REDIS_DB、OTEL_* 使用严格解析
+10. api-minimal 的 config.Load 改为返回 (Config, error)，OTEL_* 使用严格解析
+11. cmd/api root 增加 configureLogging，注册后的自定义命令可继承默认 logger 初始化
+```
+
+验证结果：
+
+```text
+1. 脚手架自身 go test ./... 通过
+2. internal/scaffold 矩阵测试中四种生成项目均 go test ./... 通过
+3. internal/scaffold 矩阵测试中四种生成项目均 go build ./cmd/api 通过
+```
+
+### 2026-06-05 后台 Worker 骨架进度
+
+已完成：
+
+```text
+1. api-clean 模板新增 internal/worker/worker.go
+2. api-clean 模板新增 internal/worker/worker_test.go
+3. api-minimal 模板新增 internal/worker/worker.go
+4. api-minimal 模板新增 internal/worker/worker_test.go
+5. schedule 子命令改为使用 worker.NewScheduler
+6. queue 子命令改为使用 worker.NewQueueWorker
+7. worker 骨架提供启动/停止日志、周期执行、错误日志和 panic recover
+8. docs/OPTIMIZATION_BACKLOG.md 记录剩余优化项，并将 worker 骨架移入已完成优化
+```
+
+### 2026-06-05 HTTP 生产默认值进度
+
+已完成：
+
+```text
+1. api-clean HTTPConfig 增加 ReadHeaderTimeout、ReadTimeout、WriteTimeout、IdleTimeout、MaxHeaderBytes
+2. api-minimal 增加 HTTPConfig，并接入相同 HTTP server 配置
+3. HTTP_READ_HEADER_TIMEOUT 默认 5s
+4. HTTP_READ_TIMEOUT 默认 15s
+5. HTTP_WRITE_TIMEOUT 默认 30s
+6. HTTP_IDLE_TIMEOUT 默认 60s
+7. HTTP_MAX_HEADER_BYTES 默认 1048576
+8. duration/int 配置严格解析，非法值启动即失败
+9. docs/OPTIMIZATION_BACKLOG.md 将 HTTP 生产默认值移入已完成优化
+```
+
+### 2026-06-09 文档与发布体验进度
+
+已完成：
+
+```text
+1. 新增 docs/CONFIG_REFERENCE.md，整理环境变量类型、默认值和非法值行为
+2. 新增 docs/TEMPLATE_DEPENDENCIES.md，整理 go.mod.tmpl/go.sum.tmpl 刷新流程
+3. gos CLI 新增 version 子命令
+4. version 输出 Version、Commit、BuildDate
+5. Makefile build 支持通过 ldflags 注入版本、commit 和构建时间
+6. docs/OPTIMIZATION_BACKLOG.md 将配置表和模板依赖刷新流程移入已完成优化
+```
+
+### 2026-06-09 请求体大小限制进度
+
+已完成：
+
+```text
+1. api-clean HTTPConfig 增加 MaxBodyBytes
+2. api-minimal HTTPConfig 增加 MaxBodyBytes
+3. HTTP_MAX_BODY_BYTES 默认 10485760
+4. HTTP_MAX_BODY_BYTES 使用 int64 严格解析，非法值启动即失败
+5. api-clean router 使用 http.MaxBytesHandler 限制请求体大小
+6. api-minimal router 使用 http.MaxBytesHandler 限制请求体大小
+7. HTTP_MAX_BODY_BYTES=0 可关闭请求体大小限制
+8. docs/OPTIMIZATION_BACKLOG.md 将请求体大小限制移入已完成优化
+```
+
+### 2026-06-09 CLI 发布体验进度
+
+已完成：
+
+```text
+1. gos completion <bash|zsh|fish|powershell>
+2. completion 使用 Cobra 原生 completion 生成器
+3. docs/RELEASE.md 记录构建、版本注入、completion 和发布前检查
+4. docs/CLI_GUIDE.md 补充 completion 使用方式
+5. docs/OPTIMIZATION_BACKLOG.md 将 CLI 发布体验基础能力移入已完成优化
+```
+
+### 2026-06-09 OpenTelemetry 外部调用与本地环境进度
+
+已完成：
+
+```text
+1. api-clean --with-otel 生成 internal/observability/http_client.go
+2. api-minimal --with-otel 生成 internal/observability/http_client.go
+3. observability.NewHTTPClient 使用 otelhttp.NewTransport
+4. observability.NewHTTPTransport 支持传入自定义 base RoundTripper
+5. docs/LOCAL_OBSERVABILITY.md 提供 otelcol debug exporter 示例
+6. docs/LOCAL_OBSERVABILITY.md 提供 Jaeger all-in-one 示例
+7. docs/OPEN_TELEMETRY.md 补充外部 HTTP client tracing 用法
+```
+
+### 2026-06-09 OpenTelemetry 数据库 tracing 进度
+
+已完成：
+
+```text
+1. api-clean --with-otel 增加 github.com/XSAM/otelsql 依赖
+2. api-clean database.Open 在启用 OTEL 模板时使用 otelsql.Open
+3. 默认 api-clean 模板仍使用标准库 sql.Open，不引入 OTEL 依赖
+4. Repository、TxManager 和业务代码继续使用标准库 *sql.DB/*sql.Tx 接口
+5. database/sql span 增加 db.system.name 属性
+6. Ping span 默认开启，driver.ErrSkip 默认不记录为 span error
+7. docs/OPEN_TELEMETRY.md 补充数据库 tracing 说明
+8. docs/LOCAL_OBSERVABILITY.md 补充本地 DB span 验证说明
+9. docs/OPTIMIZATION_BACKLOG.md 将数据库 tracing 移入已完成优化
 ```

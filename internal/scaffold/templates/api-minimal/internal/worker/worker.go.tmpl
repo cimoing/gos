@@ -1,0 +1,135 @@
+package worker
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"time"
+)
+
+type Task struct {
+	Name string
+	Run  func(context.Context) error
+}
+
+type Scheduler struct {
+	logger   *slog.Logger
+	interval time.Duration
+	tasks    []Task
+}
+
+func NewScheduler(logger *slog.Logger, interval time.Duration, tasks ...Task) *Scheduler {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	if interval <= 0 {
+		interval = time.Minute
+	}
+	return &Scheduler{
+		logger:   logger,
+		interval: interval,
+		tasks:    tasks,
+	}
+}
+
+func (s *Scheduler) Run(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	s.logger.InfoContext(ctx, "scheduler started", "interval", s.interval.String())
+
+	ticker := time.NewTicker(s.interval)
+	defer ticker.Stop()
+
+	s.runOnce(ctx)
+	for {
+		select {
+		case <-ctx.Done():
+			s.logger.InfoContext(ctx, "scheduler stopped")
+			return nil
+		case <-ticker.C:
+			s.runOnce(ctx)
+		}
+	}
+}
+
+func (s *Scheduler) runOnce(ctx context.Context) {
+	for _, task := range s.tasks {
+		if task.Run == nil {
+			continue
+		}
+		name := task.Name
+		if name == "" {
+			name = "task"
+		}
+		startedAt := time.Now()
+		if err := runSafely(ctx, task.Run); err != nil {
+			s.logger.ErrorContext(ctx, "scheduled task failed", "task", name, "error", err, "duration_ms", time.Since(startedAt).Milliseconds())
+			continue
+		}
+		s.logger.DebugContext(ctx, "scheduled task completed", "task", name, "duration_ms", time.Since(startedAt).Milliseconds())
+	}
+}
+
+type QueueWorker struct {
+	logger   *slog.Logger
+	interval time.Duration
+	process  func(context.Context) error
+}
+
+func NewQueueWorker(logger *slog.Logger, interval time.Duration, process func(context.Context) error) *QueueWorker {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	if interval <= 0 {
+		interval = time.Second
+	}
+	return &QueueWorker{
+		logger:   logger,
+		interval: interval,
+		process:  process,
+	}
+}
+
+func (w *QueueWorker) Run(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	w.logger.InfoContext(ctx, "queue worker started", "interval", w.interval.String())
+
+	ticker := time.NewTicker(w.interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			w.logger.InfoContext(ctx, "queue worker stopped")
+			return nil
+		case <-ticker.C:
+			w.processOnce(ctx)
+		}
+	}
+}
+
+func (w *QueueWorker) processOnce(ctx context.Context) {
+	if w.process == nil {
+		return
+	}
+	startedAt := time.Now()
+	if err := runSafely(ctx, w.process); err != nil {
+		w.logger.ErrorContext(ctx, "queue worker failed", "error", err, "duration_ms", time.Since(startedAt).Milliseconds())
+		return
+	}
+	w.logger.DebugContext(ctx, "queue worker tick completed", "duration_ms", time.Since(startedAt).Milliseconds())
+}
+
+func runSafely(ctx context.Context, fn func(context.Context) error) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("panic: %v", recovered)
+		}
+	}()
+	return fn(ctx)
+}

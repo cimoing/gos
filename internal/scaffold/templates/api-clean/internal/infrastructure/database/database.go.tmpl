@@ -6,6 +6,10 @@ import (
 	"fmt"
 	"strings"
 
+{{- if .WithOpenTelemetry }}
+	"github.com/XSAM/otelsql"
+	"go.opentelemetry.io/otel/attribute"
+{{ end }}
 	"{{ .ModulePath }}/internal/config"
 )
 
@@ -20,7 +24,7 @@ func Open(ctx context.Context, cfg config.DatabaseConfig) (*sql.DB, error) {
 		return nil, fmt.Errorf("database driver is required when DB_DSN is set")
 	}
 
-	db, err := sql.Open(cfg.Driver, cfg.DSN)
+	db, err := openSQLDatabase(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -29,4 +33,18 @@ func Open(ctx context.Context, cfg config.DatabaseConfig) (*sql.DB, error) {
 		return nil, err
 	}
 	return db, nil
+}
+
+func openSQLDatabase(cfg config.DatabaseConfig) (*sql.DB, error) {
+{{- if .WithOpenTelemetry }}
+	return otelsql.Open(cfg.Driver, cfg.DSN,
+		otelsql.WithAttributes(attribute.String("db.system.name", cfg.Driver)),
+		otelsql.WithSpanOptions(otelsql.SpanOptions{
+			Ping:           true,
+			DisableErrSkip: true,
+		}),
+	)
+{{- else }}
+	return sql.Open(cfg.Driver, cfg.DSN)
+{{- end }}
 }
