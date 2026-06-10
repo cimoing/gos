@@ -167,7 +167,7 @@ Recommended flow:
 4. Add handler tests for status codes and response shape.
 ```
 
-`gos make:handler <module> --openapi` can append a list path with tags, a list success response, and standard error response references. Complex request bodies, domain schemas, and business-specific error codes should still be reviewed manually.
+`gos make:handler <module> --openapi` can append a list path with tags, a list success response, and standard error response references. `gos make:model <module> --openapi` and `gos make:repository <module> --openapi` can append entity schemas from the field DSL. Complex request bodies and business-specific error codes should still be reviewed manually.
 
 ## {{ if .WithOpenTelemetry }}9{{ else }}8{{ end }}. HTTP layer
 
@@ -249,7 +249,7 @@ Domain code lives under `internal/domain/<module>`.
 Generate an entity only:
 
 ```bash
-gos make:model invoice --fields=number:string,total:int64,created_at:time
+gos make:model invoice --fields=number:string,total:int64,created_at:time --openapi
 ```
 
 Best practices:
@@ -265,7 +265,7 @@ Best practices:
 Generate a MySQL repository:
 
 ```bash
-gos make:repository invoice --fields=number:string:unique,size=64,total:int64,paid:bool,created_at:time:default=now --with-migration --register
+gos make:repository invoice --fields=number:string:unique,size=64,total:int64,paid:bool,created_at:time:default=now --with-migration --register --openapi
 ```
 
 Generated repository methods:

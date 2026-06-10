@@ -17,6 +17,7 @@ func runMakeModel(ctx context.Context, args []string, stdout io.Writer) error {
 
 	var opts scaffold.MakeModelOptions
 	flags.StringVar(&opts.Fields, "fields", "", "comma-separated fields, for example name:string,email:string:unique,size=320,json=email_address,default=test,sql=TEXT")
+	flags.BoolVar(&opts.OpenAPI, "openapi", false, "append model schema to api/openapi.yaml")
 	flags.BoolVar(&opts.Force, "force", false, "overwrite existing files")
 	flags.BoolVar(&opts.DryRun, "dry-run", false, "print planned files without writing them")
 
@@ -27,7 +28,7 @@ func runMakeModel(ctx context.Context, args []string, stdout io.Writer) error {
 
 	remaining := flags.Args()
 	if len(remaining) != 1 {
-		return fmt.Errorf("usage: gos make:model <module> [--fields=name:string[:unique,nullable,size=320,default=value,sql=TEXT,json=name]] [--force] [--dry-run]")
+		return fmt.Errorf("usage: gos make:model <module> [--fields=name:string[:unique,nullable,size=320,default=value,sql=TEXT,json=name]] [--openapi] [--force] [--dry-run]")
 	}
 
 	wd, err := os.Getwd()

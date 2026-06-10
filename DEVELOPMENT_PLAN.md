@@ -39,8 +39,8 @@
 1. gos new <project>
 2. gos make:usecase <module>/<action>
 3. gos make:handler <module>，支持 --register 和 --openapi
-4. gos make:model <module>，支持 --fields、--force、--dry-run
-5. gos make:repository <module>，支持 --table、--fields、--with-migration、--register
+4. gos make:model <module>，支持 --fields、--openapi、--force、--dry-run
+5. gos make:repository <module>，支持 --table、--fields、--with-migration、--register、--openapi
 6. gos make:migration <name>
 7. gos make:test <usecase|handler|repository> <name>
 8. api-clean 模板
@@ -77,6 +77,7 @@
 39. api-clean --with-otel 使用 otelsql 支持 database/sql tracing
 40. 生成项目安全默认值增强：CORS 配置化、日志敏感字段脱敏、panic 输出边界
 41. OpenAPI 基础深化：复用响应组件、列表响应 schema、错误响应引用和示例
+42. OpenAPI 领域 schema 生成：make:model/make:repository --openapi 根据字段 DSL 追加 components.schemas
 ```
 
 仍未完成：
@@ -2050,4 +2051,23 @@ v0.6.x 引入高级能力
 6. gos make:handler --openapi 的 200 响应引用 ListResponse
 7. gos make:handler --openapi 增加 BadRequest 和 InternalServerError 响应引用
 8. docs/OPTIMIZATION_BACKLOG.md 将 OpenAPI 基础深化移入已完成优化
+```
+
+### 2026-06-10 OpenAPI 领域 schema 生成进度
+
+已完成：
+
+```text
+1. gos make:model 增加 --openapi 参数
+2. gos make:repository 增加 --openapi 参数
+3. --openapi 识别标准 api-clean api/openapi.yaml 后向 components.schemas 追加实体 schema
+4. 字段 DSL string 映射为 OpenAPI string，size=N 映射为 maxLength
+5. 字段 DSL int 映射为 integer/int32
+6. 字段 DSL int64 映射为 integer/int64
+7. 字段 DSL bool 映射为 boolean
+8. 字段 DSL time 映射为 string/date-time
+9. nullable 字段生成 nullable: true，并从 required 中移除
+10. json=<name> 作为 schema property 名
+11. 非标准 OpenAPI 文件继续降级为 skipped
+12. docs/CLI_GUIDE.md、docs/GENERATED_PROJECT_GUIDE.md、生成项目 README 和 README.md 同步新参数说明
 ```

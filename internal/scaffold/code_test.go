@@ -499,6 +499,88 @@ func TestCodeGeneratorGenerateModel(t *testing.T) {
 	}
 }
 
+func TestCodeGeneratorGenerateModelRegistersOpenAPISchema(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "demo")
+	projectGen := NewProjectGenerator(generator.Default())
+	_, err := projectGen.Generate(context.Background(), NewProjectOptions{
+		ProjectName: "demo",
+		ModulePath:  "example.com/demo",
+		Template:    "api-clean",
+		TargetDir:   root,
+	})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	gen := NewCodeGenerator(generator.Default())
+	result, err := gen.GenerateModel(context.Background(), MakeModelOptions{
+		TargetDir: root,
+		Name:      "invoice",
+		Fields:    "number:string:json=invoice_number,size=64,total:int64,paid:bool,created_at:time,deleted_at:time:nullable",
+		OpenAPI:   true,
+	})
+	if err != nil {
+		t.Fatalf("GenerateModel() error = %v", err)
+	}
+	if len(result.Updated) != 1 {
+		t.Fatalf("updated files = %v, want OpenAPI update", result.Updated)
+	}
+
+	openAPI, err := os.ReadFile(filepath.Join(root, "api", "openapi.yaml"))
+	if err != nil {
+		t.Fatalf("ReadFile(openapi) error = %v", err)
+	}
+	openAPIText := string(openAPI)
+	for _, want := range []string{
+		"    Invoice:",
+		"        - id",
+		"        - invoice_number",
+		"        invoice_number:",
+		"          maxLength: 64",
+		"        total:",
+		"          format: int64",
+		"        paid:",
+		"          type: boolean",
+		"        created_at:",
+		"          format: date-time",
+		"        deleted_at:",
+		"          nullable: true",
+	} {
+		if !strings.Contains(openAPIText, want) {
+			t.Fatalf("openapi missing %q:\n%s", want, openAPIText)
+		}
+	}
+	if strings.Index(openAPIText, "    Invoice:") > strings.Index(openAPIText, "    ErrorResponse:") {
+		t.Fatalf("schema was not inserted before ErrorResponse:\n%s", openAPIText)
+	}
+}
+
+func TestCodeGeneratorGenerateModelSkipsNonStandardOpenAPISchema(t *testing.T) {
+	root := t.TempDir()
+	apiDir := filepath.Join(root, "api")
+	if err := os.MkdirAll(apiDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	openAPIPath := filepath.Join(apiDir, "openapi.yaml")
+	if err := os.WriteFile(openAPIPath, []byte("openapi: 3.0.3\ncomponents:\n  schemas: {}\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	gen := NewCodeGenerator(generator.Default())
+	result, err := gen.GenerateModel(context.Background(), MakeModelOptions{
+		TargetDir: root,
+		Name:      "invoice",
+		Fields:    "number:string",
+		OpenAPI:   true,
+	})
+	if err != nil {
+		t.Fatalf("GenerateModel() error = %v", err)
+	}
+	if len(result.Skipped) != 1 || result.Skipped[0] != "api/openapi.yaml" {
+		t.Fatalf("skipped files = %v, want OpenAPI skipped", result.Skipped)
+	}
+}
+
 func TestCodeGeneratorGenerateModelRejectsInvalidField(t *testing.T) {
 	gen := NewCodeGenerator(generator.Default())
 
@@ -679,6 +761,57 @@ func TestCodeGeneratorGenerateRepositoryWithFields(t *testing.T) {
 	} {
 		if !strings.Contains(migrationText, want) {
 			t.Fatalf("migration missing %q:\n%s", want, migrationText)
+		}
+	}
+}
+
+func TestCodeGeneratorGenerateRepositoryRegistersOpenAPISchema(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "demo")
+	projectGen := NewProjectGenerator(generator.Default())
+	_, err := projectGen.Generate(context.Background(), NewProjectOptions{
+		ProjectName: "demo",
+		ModulePath:  "example.com/demo",
+		Template:    "api-clean",
+		TargetDir:   root,
+	})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	gen := NewCodeGenerator(generator.Default())
+	result, err := gen.GenerateRepository(context.Background(), MakeRepositoryOptions{
+		TargetDir:  root,
+		Name:       "customer",
+		ModulePath: "example.com/demo",
+		DB:         "mysql",
+		Fields:     "email:string:size=320,age:int,active:bool,created_at:time",
+		OpenAPI:    true,
+	})
+	if err != nil {
+		t.Fatalf("GenerateRepository() error = %v", err)
+	}
+	if len(result.Updated) != 1 {
+		t.Fatalf("updated files = %v, want OpenAPI update", result.Updated)
+	}
+
+	openAPI, err := os.ReadFile(filepath.Join(root, "api", "openapi.yaml"))
+	if err != nil {
+		t.Fatalf("ReadFile(openapi) error = %v", err)
+	}
+	openAPIText := string(openAPI)
+	for _, want := range []string{
+		"    Customer:",
+		"        email:",
+		"          maxLength: 320",
+		"        age:",
+		"          format: int32",
+		"        active:",
+		"          type: boolean",
+		"        created_at:",
+		"          format: date-time",
+	} {
+		if !strings.Contains(openAPIText, want) {
+			t.Fatalf("openapi missing %q:\n%s", want, openAPIText)
 		}
 	}
 }

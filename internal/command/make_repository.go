@@ -24,6 +24,7 @@ func runMakeRepository(ctx context.Context, args []string, stdout io.Writer) err
 	flags.BoolVar(&opts.WithMigration, "with-migration", false, "generate a create table migration")
 	flags.StringVar(&opts.MigrationDir, "migration-dir", "migrations", "migration directory")
 	flags.BoolVar(&opts.Register, "register", false, "register repository in internal/app/assembly.go")
+	flags.BoolVar(&opts.OpenAPI, "openapi", false, "append entity schema to api/openapi.yaml")
 	flags.BoolVar(&opts.Force, "force", false, "overwrite existing files")
 	flags.BoolVar(&opts.DryRun, "dry-run", false, "print planned files without writing them")
 
@@ -34,7 +35,7 @@ func runMakeRepository(ctx context.Context, args []string, stdout io.Writer) err
 
 	remaining := flags.Args()
 	if len(remaining) != 1 {
-		return fmt.Errorf("usage: gos make:repository <module> [--module=<module-path>] [--db=mysql] [--table=<table>] [--fields=name:string[:unique,nullable,size=320,default=value,sql=TEXT,json=name]] [--with-migration] [--migration-dir=migrations] [--register] [--force] [--dry-run]")
+		return fmt.Errorf("usage: gos make:repository <module> [--module=<module-path>] [--db=mysql] [--table=<table>] [--fields=name:string[:unique,nullable,size=320,default=value,sql=TEXT,json=name]] [--with-migration] [--migration-dir=migrations] [--register] [--openapi] [--force] [--dry-run]")
 	}
 
 	wd, err := os.Getwd()

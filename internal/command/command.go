@@ -14,8 +14,8 @@ Usage:
   gos new <project> [--module=<module>] [--template=api-clean|api-minimal] [--with-otel] [--force] [--dry-run]
   gos make:usecase <module>/<action> [--force] [--dry-run]
   gos make:handler <module> [--module=<module-path>] [--register] [--openapi] [--force] [--dry-run]
-  gos make:model <module> [--fields=name:string[:unique,nullable,size=320,default=value,sql=TEXT,json=name]] [--force] [--dry-run]
-  gos make:repository <module> [--module=<module-path>] [--db=mysql] [--table=<table>] [--fields=name:string[:unique,nullable,size=320,default=value,sql=TEXT,json=name]] [--with-migration] [--migration-dir=migrations] [--register] [--force] [--dry-run]
+  gos make:model <module> [--fields=name:string[:unique,nullable,size=320,default=value,sql=TEXT,json=name]] [--openapi] [--force] [--dry-run]
+  gos make:repository <module> [--module=<module-path>] [--db=mysql] [--table=<table>] [--fields=name:string[:unique,nullable,size=320,default=value,sql=TEXT,json=name]] [--with-migration] [--migration-dir=migrations] [--register] [--openapi] [--force] [--dry-run]
   gos make:migration <name> [--dir=migrations] [--force] [--dry-run]
   gos make:test <usecase|handler|repository> <name> [--module=<module-path>] [--force] [--dry-run]
   gos make:command <name> [--module=<module-path>] [--register] [--force] [--dry-run]
@@ -138,10 +138,10 @@ const usageMakeHandler = `Usage:
   gos make:handler <module> [--module=<module-path>] [--register] [--openapi] [--force] [--dry-run]`
 
 const usageMakeModel = `Usage:
-  gos make:model <module> [--fields=name:string[:unique,nullable,size=320,default=value,sql=TEXT,json=name]] [--force] [--dry-run]`
+  gos make:model <module> [--fields=name:string[:unique,nullable,size=320,default=value,sql=TEXT,json=name]] [--openapi] [--force] [--dry-run]`
 
 const usageMakeRepository = `Usage:
-  gos make:repository <module> [--module=<module-path>] [--db=mysql] [--table=<table>] [--fields=name:string[:unique,nullable,size=320,default=value,sql=TEXT,json=name]] [--with-migration] [--migration-dir=migrations] [--register] [--force] [--dry-run]`
+  gos make:repository <module> [--module=<module-path>] [--db=mysql] [--table=<table>] [--fields=name:string[:unique,nullable,size=320,default=value,sql=TEXT,json=name]] [--with-migration] [--migration-dir=migrations] [--register] [--openapi] [--force] [--dry-run]`
 
 const usageMakeMigration = `Usage:
   gos make:migration <name> [--dir=migrations] [--force] [--dry-run]`

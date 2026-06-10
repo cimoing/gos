@@ -14,8 +14,8 @@
 gos new <project> [--module=<module>] [--template=api-clean|api-minimal] [--with-otel] [--force] [--dry-run]
 gos make:usecase <module>/<action> [--force] [--dry-run]
 gos make:handler <module> [--module=<module-path>] [--register] [--openapi] [--force] [--dry-run]
-gos make:model <module> [--fields=name:string[:unique,nullable,size=320,default=value,sql=TEXT,json=name]] [--force] [--dry-run]
-gos make:repository <module> [--module=<module-path>] [--db=mysql] [--table=<table>] [--fields=name:string[:unique,nullable,size=320,default=value,sql=TEXT,json=name]] [--with-migration] [--migration-dir=migrations] [--register] [--force] [--dry-run]
+gos make:model <module> [--fields=name:string[:unique,nullable,size=320,default=value,sql=TEXT,json=name]] [--openapi] [--force] [--dry-run]
+gos make:repository <module> [--module=<module-path>] [--db=mysql] [--table=<table>] [--fields=name:string[:unique,nullable,size=320,default=value,sql=TEXT,json=name]] [--with-migration] [--migration-dir=migrations] [--register] [--openapi] [--force] [--dry-run]
 gos make:migration <name> [--dir=migrations] [--force] [--dry-run]
 gos make:test <usecase|handler|repository> <name> [--module=<module-path>] [--force] [--dry-run]
 gos make:command <name> [--module=<module-path>] [--register] [--force] [--dry-run]
@@ -217,13 +217,14 @@ gos make:handler user --register --openapi
 `make:model` 生成 Domain Entity。
 
 ```bash
-gos make:model invoice --fields=number:string:json=invoice_number,total:int64,created_at:time
+gos make:model invoice --fields=number:string:json=invoice_number,total:int64,created_at:time --openapi
 ```
 
 生成文件：
 
 ```text
 internal/domain/invoice/entity.go
+api/openapi.yaml（使用 --openapi 时更新）
 ```
 
 适用场景：
@@ -232,6 +233,7 @@ internal/domain/invoice/entity.go
 1. 只需要领域实体，暂时不生成 Repository。
 2. 先建模，再逐步补充持久化实现。
 3. 已有数据库访问方式，不希望使用当前 MySQL Repository 模板。
+4. 使用 --openapi 时，同步向 api/openapi.yaml 的 components.schemas 追加实体 schema。
 ```
 
 ## 8. make:repository
@@ -239,7 +241,7 @@ internal/domain/invoice/entity.go
 `make:repository` 生成 Domain Repository 契约、MySQL Repository 实现、测试骨架，并可选生成迁移文件和注册到依赖组装。
 
 ```bash
-gos make:repository invoice --fields=number:string:unique,size=64,total:int64,paid:bool,created_at:time:default=now --with-migration --register
+gos make:repository invoice --fields=number:string:unique,size=64,total:int64,paid:bool,created_at:time:default=now --with-migration --register --openapi
 ```
 
 生成文件：
@@ -253,6 +255,7 @@ internal/infrastructure/persistence/mysql/invoice_repository_integration_test.go
 migrations/<timestamp>_create_invoices_table.up.sql
 migrations/<timestamp>_create_invoices_table.down.sql
 internal/app/assembly.go
+api/openapi.yaml（使用 --openapi 时更新）
 ```
 
 参数说明：
@@ -264,6 +267,7 @@ internal/app/assembly.go
 --with-migration  同步生成 up/down SQL 文件。
 --migration-dir   迁移目录，默认 migrations。
 --register        自动注册到 internal/app/assembly.go。
+--openapi         根据 --fields 向 api/openapi.yaml 追加实体 schema。
 ```
 
 ### 8.1 字段 DSL
@@ -301,6 +305,18 @@ size=N         string 字段使用 VARCHAR(N)
 default=value  生成默认值
 sql=TYPE       指定 SQL 类型，例如 DECIMAL(10,2)
 json=name      指定 JSON 标签名
+```
+
+`--openapi` 会复用字段 DSL：
+
+```text
+1. string -> type: string，size=N 会生成 maxLength。
+2. int -> type: integer, format: int32。
+3. int64 -> type: integer, format: int64。
+4. bool -> type: boolean。
+5. time -> type: string, format: date-time。
+6. nullable 会生成 nullable: true，并从 required 列表中移除。
+7. json=<name> 会作为 schema property 名。
 ```
 
 示例：

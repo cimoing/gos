@@ -56,6 +56,7 @@ type MakeRepositoryOptions struct {
 	WithMigration bool
 	MigrationDir  string
 	Register      bool
+	OpenAPI       bool
 	Force         bool
 	DryRun        bool
 }
@@ -64,6 +65,7 @@ type MakeModelOptions struct {
 	TargetDir string
 	Name      string
 	Fields    string
+	OpenAPI   bool
 	Force     bool
 	DryRun    bool
 }
@@ -380,6 +382,18 @@ func (g *CodeGenerator) GenerateRepository(ctx context.Context, opts MakeReposit
 			})
 		}
 	}
+	if opts.OpenAPI {
+		openAPISource, changed, err := registerSchemaInOpenAPI(opts.TargetDir, data.TypeName, fields)
+		if err != nil {
+			skipped = append(skipped, filepath.ToSlash(filepath.Join("api", "openapi.yaml")))
+		} else if changed {
+			files = append(files, filesystem.File{
+				Path:      filepath.ToSlash(filepath.Join("api", "openapi.yaml")),
+				Content:   openAPISource,
+				Overwrite: true,
+			})
+		}
+	}
 
 	result, err := g.engine.Writer.Write(files, filesystem.WriteOptions{
 		Root:   opts.TargetDir,
@@ -426,11 +440,30 @@ func (g *CodeGenerator) GenerateModel(ctx context.Context, opts MakeModelOptions
 		},
 	}
 
-	return g.engine.Writer.Write(files, filesystem.WriteOptions{
+	var skipped []string
+	if opts.OpenAPI {
+		openAPISource, changed, err := registerSchemaInOpenAPI(opts.TargetDir, data.TypeName, fields)
+		if err != nil {
+			skipped = append(skipped, filepath.ToSlash(filepath.Join("api", "openapi.yaml")))
+		} else if changed {
+			files = append(files, filesystem.File{
+				Path:      filepath.ToSlash(filepath.Join("api", "openapi.yaml")),
+				Content:   openAPISource,
+				Overwrite: true,
+			})
+		}
+	}
+
+	result, err := g.engine.Writer.Write(files, filesystem.WriteOptions{
 		Root:   opts.TargetDir,
 		Force:  opts.Force,
 		DryRun: opts.DryRun,
 	})
+	if err != nil {
+		return nil, err
+	}
+	result.Skipped = append(result.Skipped, skipped...)
+	return result, nil
 }
 
 func (g *CodeGenerator) GenerateTest(ctx context.Context, opts MakeTestOptions) (*filesystem.Result, error) {
@@ -1283,6 +1316,99 @@ func registerHandlerInOpenAPI(root string, data handlerTemplateData) ([]byte, bo
 `, data.RoutePath, data.TypeName, data.TypeName, data.TypeName, data.TypeName)
 	text = strings.Replace(text, marker, snippet+marker, 1)
 	return []byte(text), true, nil
+}
+
+func registerSchemaInOpenAPI(root string, typeName string, fields []fieldSpec) ([]byte, bool, error) {
+	openAPIPath := filepath.Join(root, "api", "openapi.yaml")
+	source, err := os.ReadFile(openAPIPath)
+	if err != nil {
+		return nil, false, fmt.Errorf("read OpenAPI for schema registration: %w", err)
+	}
+
+	text := string(source)
+	schemaLine := "    " + typeName + ":"
+	if strings.Contains(text, "\n"+schemaLine+"\n") {
+		return source, false, nil
+	}
+	if !strings.Contains(text, "\n  schemas:\n") {
+		return nil, false, fmt.Errorf("OpenAPI file is missing schemas section")
+	}
+
+	marker := "\n    ErrorResponse:"
+	if !strings.Contains(text, marker) {
+		return nil, false, fmt.Errorf("OpenAPI file is not in the expected api-clean schema format")
+	}
+
+	snippet := openAPISchemaSnippet(typeName, fields)
+	text = strings.Replace(text, marker, "\n"+snippet+marker, 1)
+	return []byte(text), true, nil
+}
+
+func openAPISchemaSnippet(typeName string, fields []fieldSpec) string {
+	var builder strings.Builder
+	fmt.Fprintf(&builder, "    %s:\n", typeName)
+	builder.WriteString("      type: object\n")
+	builder.WriteString("      required:\n")
+	builder.WriteString("        - id\n")
+	for _, field := range fields {
+		if field.Nullable || field.JSONName == "-" {
+			continue
+		}
+		fmt.Fprintf(&builder, "        - %s\n", field.JSONName)
+	}
+	builder.WriteString("      properties:\n")
+	builder.WriteString("        id:\n")
+	builder.WriteString("          type: integer\n")
+	builder.WriteString("          format: int64\n")
+	builder.WriteString("          example: 1\n")
+	for _, field := range fields {
+		if field.JSONName == "-" {
+			continue
+		}
+		fmt.Fprintf(&builder, "        %s:\n", field.JSONName)
+		for _, line := range openAPIFieldSchemaLines(field) {
+			fmt.Fprintf(&builder, "          %s\n", line)
+		}
+	}
+	return builder.String()
+}
+
+func openAPIFieldSchemaLines(field fieldSpec) []string {
+	var lines []string
+	switch field.GoType {
+	case "string":
+		lines = append(lines, "type: string")
+		if maxLength := openAPIStringMaxLength(field.SQLType); maxLength > 0 {
+			lines = append(lines, fmt.Sprintf("maxLength: %d", maxLength))
+		}
+	case "int":
+		lines = append(lines, "type: integer", "format: int32")
+	case "int64":
+		lines = append(lines, "type: integer", "format: int64")
+	case "bool":
+		lines = append(lines, "type: boolean")
+	case "time.Time":
+		lines = append(lines, "type: string", "format: date-time")
+	default:
+		lines = append(lines, "type: string")
+	}
+	if field.Nullable {
+		lines = append(lines, "nullable: true")
+	}
+	return lines
+}
+
+func openAPIStringMaxLength(sqlType string) int {
+	upper := strings.ToUpper(strings.TrimSpace(sqlType))
+	if !strings.HasPrefix(upper, "VARCHAR(") || !strings.HasSuffix(upper, ")") {
+		return 0
+	}
+	sizeText := strings.TrimSuffix(strings.TrimPrefix(upper, "VARCHAR("), ")")
+	size, err := strconv.Atoi(sizeText)
+	if err != nil || size <= 0 {
+		return 0
+	}
+	return size
 }
 
 func registerRepositoryInAssembly(root string, data repositoryTemplateData) ([]byte, bool, error) {

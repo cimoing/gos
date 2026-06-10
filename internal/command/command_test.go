@@ -167,7 +167,7 @@ func TestExecuteMakeModelDryRun(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	err := Execute(context.Background(), []string{"make:model", "invoice", "--fields=number:string,total:int64", "--dry-run"}, &stdout, &stderr)
+	err := Execute(context.Background(), []string{"make:model", "invoice", "--fields=number:string,total:int64", "--openapi", "--dry-run"}, &stdout, &stderr)
 	if err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}

@@ -46,13 +46,16 @@
 
 12. OpenAPI 基础深化
    默认 api-clean OpenAPI 已增加可复用 components.responses、ListResponse 和示例；gos make:handler --openapi 会生成 tag、列表成功响应和标准错误响应引用。
+
+13. OpenAPI 领域 schema 生成
+   gos make:model --openapi 与 gos make:repository --openapi 已支持根据字段 DSL 向 components.schemas 追加实体 schema，覆盖 string/int/int64/bool/time、nullable、size 和 json 字段名。
 ```
 
 ## 中优先级
 
 ```text
-1. OpenAPI 领域 schema 与契约校验
-   根据字段 DSL 生成更完整的 schema、requestBody、业务错误码，并评估引入契约校验工具。
+1. OpenAPI requestBody 与契约校验
+   为 Handler 生成更完整的 requestBody、业务错误码，并评估引入契约校验工具。
 ```
 
 ## 低优先级
@@ -71,7 +74,7 @@
 ## 当前建议顺序
 
 ```text
-1. OpenAPI 领域 schema 与契约校验
+1. OpenAPI requestBody 与契约校验
 2. 更细的安全策略开关
 3. --with-log-file
 ```
