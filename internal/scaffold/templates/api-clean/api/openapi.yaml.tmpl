@@ -7,6 +7,8 @@ servers:
 paths:
   /healthz:
     get:
+      tags:
+        - Health
       summary: Health check
       operationId: getHealthz
       responses:
@@ -16,7 +18,50 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
+              examples:
+                healthy:
+                  value:
+                    code: OK
+                    message: success
+                    data:
+                      status: ok
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 components:
+  responses:
+    BadRequest:
+      description: Invalid request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            badRequest:
+              value:
+                code: BAD_REQUEST
+                message: invalid request
+    NotFound:
+      description: Resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            notFound:
+              value:
+                code: NOT_FOUND
+                message: resource not found
+    InternalServerError:
+      description: Internal server error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            internalServerError:
+              value:
+                code: INTERNAL_ERROR
+                message: internal server error
   schemas:
     SuccessResponse:
       type: object
@@ -32,6 +77,23 @@ components:
           example: success
         data:
           nullable: true
+    ListResponse:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: string
+          example: OK
+        message:
+          type: string
+          example: success
+        data:
+          type: array
+          items:
+            type: object
     ErrorResponse:
       type: object
       required:

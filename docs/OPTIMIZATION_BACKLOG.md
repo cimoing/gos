@@ -40,13 +40,19 @@
 
 10. 数据库 tracing 可选方案
    api-clean --with-otel 已使用 github.com/XSAM/otelsql 包裹 database/sql，Repository/TxManager 继续使用 *sql.DB，不改变业务代码调用方式。
+
+11. 安全默认值增强
+   api-clean CORS 已支持 CORS_* 环境变量配置；生成 logger 已默认脱敏 password/token/authorization/secret/dsn 等常见敏感字段；Recover 响应保持泛化错误，日志只记录 panic 类型。
+
+12. OpenAPI 基础深化
+   默认 api-clean OpenAPI 已增加可复用 components.responses、ListResponse 和示例；gos make:handler --openapi 会生成 tag、列表成功响应和标准错误响应引用。
 ```
 
 ## 中优先级
 
 ```text
-1. 安全默认值增强
-   CORS 生产配置建议、敏感日志字段脱敏、panic 输出控制、健康检查和错误响应细节边界。
+1. OpenAPI 领域 schema 与契约校验
+   根据字段 DSL 生成更完整的 schema、requestBody、业务错误码，并评估引入契约校验工具。
 ```
 
 ## 低优先级
@@ -58,14 +64,14 @@
 2. 更多模板能力开关
    例如 --with-docker、--with-ci、--with-auth、--with-redis。需要控制组合复杂度，避免测试矩阵膨胀。
 
-3. OpenAPI 深度增强
-   更完整的 schema、错误响应、请求体生成和契约校验。
+3. 更细的安全策略开关
+   例如安全响应头、请求速率限制、认证模板和更细粒度日志字段策略。
 ```
 
 ## 当前建议顺序
 
 ```text
-1. 安全默认值增强
-2. OpenAPI 深度增强
+1. OpenAPI 领域 schema 与契约校验
+2. 更细的安全策略开关
 3. --with-log-file
 ```

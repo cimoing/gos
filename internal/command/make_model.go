@@ -7,8 +7,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/jake/gola/internal/generator"
-	"github.com/jake/gola/internal/scaffold"
+	"github.com/cimoing/gos/internal/generator"
+	"github.com/cimoing/gos/internal/scaffold"
 )
 
 func runMakeModel(ctx context.Context, args []string, stdout io.Writer) error {

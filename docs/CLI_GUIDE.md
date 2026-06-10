@@ -198,7 +198,7 @@ gos make:handler user --register --openapi
 ```text
 1. --register 只在识别 api-clean 标准 router.go 结构时自动更新。
 2. 非标准 router.go 会降级为 skipped，并提示手动注册代码。
-3. --openapi 只在识别标准 api/openapi.yaml 结构时追加 path。
+3. --openapi 只在识别标准 api/openapi.yaml 结构时追加 path，并生成 tag、列表成功响应和标准错误响应引用。
 4. Handler 层只做协议适配、参数解析、调用 Usecase、响应转换。
 ```
 
@@ -417,7 +417,7 @@ built <build-date>
 本地开发默认显示 `dev`、`none`、`unknown`。发布构建时可以通过 ldflags 注入：
 
 ```bash
-go build -ldflags "-X github.com/jake/gola/internal/command.Version=v0.1.0 -X github.com/jake/gola/internal/command.Commit=abc1234 -X github.com/jake/gola/internal/command.BuildDate=2026-06-09T00:00:00Z" -o bin/gos ./cmd/gos
+go build -ldflags "-X github.com/cimoing/gos/internal/command.Version=v0.1.0 -X github.com/cimoing/gos/internal/command.Commit=abc1234 -X github.com/cimoing/gos/internal/command.BuildDate=2026-06-09T00:00:00Z" -o bin/gos ./cmd/gos
 ```
 
 ## 13. completion

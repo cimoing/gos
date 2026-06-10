@@ -9,9 +9,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/jake/gola/internal/filesystem"
-	"github.com/jake/gola/internal/generator"
-	"github.com/jake/gola/internal/naming"
+	"github.com/cimoing/gos/internal/filesystem"
+	"github.com/cimoing/gos/internal/generator"
+	"github.com/cimoing/gos/internal/naming"
 )
 
 const DefaultProjectTemplate = "api-clean"

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/jake/gola/internal/filesystem"
+	"github.com/cimoing/gos/internal/filesystem"
 )
 
 func printResult(stdout io.Writer, result *filesystem.Result) {

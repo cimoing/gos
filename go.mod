@@ -1,4 +1,4 @@
-module github.com/jake/gola
+module github.com/cimoing/gos
 
 go 1.25.4
 

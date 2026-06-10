@@ -17,6 +17,16 @@
 | `HTTP_MAX_BODY_BYTES` | int64 | `10485760` | api-clean, api-minimal | 最大请求体大小，设置为 `0` 可关闭限制。 |
 | `LOG_LEVEL` | enum | `info` | api-clean, api-minimal | 支持 `debug`、`info`、`warn`、`warning`、`error`。 |
 
+## api-clean CORS 配置
+
+| 变量 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `CORS_ALLOWED_ORIGINS` | csv | `*` | 允许的 Origin 列表，生产环境建议设置为明确域名。 |
+| `CORS_ALLOWED_METHODS` | csv | `GET,POST,PUT,PATCH,DELETE,OPTIONS` | 允许的 HTTP 方法。 |
+| `CORS_ALLOWED_HEADERS` | csv | `Authorization,Content-Type,X-Request-ID` | 允许的请求头。 |
+| `CORS_ALLOW_CREDENTIALS` | bool | `false` | 是否允许跨域携带凭证。 |
+| `CORS_MAX_AGE` | int | `600` | 预检请求缓存秒数。 |
+
 ## api-clean 数据配置
 
 | 变量 | 类型 | 默认值 | 说明 |
@@ -46,8 +56,9 @@
 2. int 使用 strconv.Atoi，只接受十进制整数字符串。
 3. int64 使用 strconv.ParseInt，只接受十进制整数字符串。
 4. duration 使用 time.ParseDuration，例如 5s、30s、1m。
-5. 非字符串配置解析失败时，config.Load 返回错误，应用启动失败。
-6. string 配置为空字符串时使用默认值；确实需要空值的配置会显式以空字符串作为默认值，例如 DB_DSN。
+5. csv 使用英文逗号分隔，空白项会被忽略。
+6. 非字符串配置解析失败时，config.Load 返回错误，应用启动失败。
+7. string 配置为空字符串时使用默认值；确实需要空值的配置会显式以空字符串作为默认值，例如 DB_DSN。
 ```
 
 常见错误：
@@ -57,6 +68,8 @@ REDIS_DB=abc                         -> parse REDIS_DB as int
 DB_ENABLE_NESTED_TRANSACTION=maybe   -> parse DB_ENABLE_NESTED_TRANSACTION as bool
 HTTP_READ_TIMEOUT=abc                -> parse HTTP_READ_TIMEOUT as duration
 HTTP_MAX_BODY_BYTES=abc              -> parse HTTP_MAX_BODY_BYTES as int64
+CORS_ALLOW_CREDENTIALS=maybe         -> parse CORS_ALLOW_CREDENTIALS as bool
+CORS_MAX_AGE=abc                     -> parse CORS_MAX_AGE as int
 OTEL_ENABLED=maybe                   -> parse OTEL_ENABLED as bool
 ```
 
@@ -65,7 +78,8 @@ OTEL_ENABLED=maybe                   -> parse OTEL_ENABLED as bool
 ```text
 1. 明确 APP_ENV、APP_NAME 和 OTEL_SERVICE_NAME。
 2. 生产环境设置合理的 HTTP timeout，不直接沿用本地压测之外的临时值。
-3. 如果业务依赖数据库，必须设置 DB_DSN。
-4. 不把密码、Token、密钥写入日志字段。
-5. 启用 OpenTelemetry 前确认 Collector endpoint、网络和 TLS/insecure 配置。
+3. 生产环境把 CORS_ALLOWED_ORIGINS 改成明确域名，避免在凭证请求中使用宽泛来源。
+4. 如果业务依赖数据库，必须设置 DB_DSN。
+5. 不把密码、Token、密钥写入日志字段；生成 logger 会对常见敏感键做默认脱敏。
+6. 启用 OpenTelemetry 前确认 Collector endpoint、网络和 TLS/insecure 配置。
 ```

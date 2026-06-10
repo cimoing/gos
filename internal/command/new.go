@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/jake/gola/internal/generator"
-	"github.com/jake/gola/internal/scaffold"
+	"github.com/cimoing/gos/internal/generator"
+	"github.com/cimoing/gos/internal/scaffold"
 )
 
 func runNew(ctx context.Context, args []string, stdout io.Writer) error {

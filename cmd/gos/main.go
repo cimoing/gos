@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/jake/gola/internal/command"
+	"github.com/cimoing/gos/internal/command"
 )
 
 func main() {

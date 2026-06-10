@@ -7,10 +7,10 @@ import (
 	"io"
 	"os"
 
-	"github.com/jake/gola/internal/generator"
-	"github.com/jake/gola/internal/naming"
-	"github.com/jake/gola/internal/project"
-	"github.com/jake/gola/internal/scaffold"
+	"github.com/cimoing/gos/internal/generator"
+	"github.com/cimoing/gos/internal/naming"
+	"github.com/cimoing/gos/internal/project"
+	"github.com/cimoing/gos/internal/scaffold"
 )
 
 func runMakeCommand(ctx context.Context, args []string, stdout io.Writer) error {

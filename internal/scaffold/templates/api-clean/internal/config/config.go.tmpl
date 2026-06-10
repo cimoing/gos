@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
 type Config struct {
 	App      AppConfig
 	HTTP     HTTPConfig
+	CORS     CORSConfig
 	Database DatabaseConfig
 	Redis    RedisConfig
 	Log      LogConfig
@@ -31,6 +33,14 @@ type HTTPConfig struct {
 	IdleTimeout       time.Duration
 	MaxHeaderBytes    int
 	MaxBodyBytes      int64
+}
+
+type CORSConfig struct {
+	AllowedOrigins   []string
+	AllowedMethods   []string
+	AllowedHeaders   []string
+	AllowCredentials bool
+	MaxAge           int
 }
 
 type DatabaseConfig struct {
@@ -82,6 +92,14 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	corsAllowCredentials, err := getEnvBool("CORS_ALLOW_CREDENTIALS", false)
+	if err != nil {
+		return Config{}, err
+	}
+	corsMaxAge, err := getEnvInt("CORS_MAX_AGE", 600)
+	if err != nil {
+		return Config{}, err
+	}
 	enableNestedTransaction, err := getEnvBool("DB_ENABLE_NESTED_TRANSACTION", false)
 	if err != nil {
 		return Config{}, err
@@ -115,6 +133,13 @@ func Load() (Config, error) {
 			MaxHeaderBytes:    httpMaxHeaderBytes,
 			MaxBodyBytes:      httpMaxBodyBytes,
 		},
+		CORS: CORSConfig{
+			AllowedOrigins:   getEnvCSV("CORS_ALLOWED_ORIGINS", []string{"*"}),
+			AllowedMethods:   getEnvCSV("CORS_ALLOWED_METHODS", []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}),
+			AllowedHeaders:   getEnvCSV("CORS_ALLOWED_HEADERS", []string{"Authorization", "Content-Type", "X-Request-ID"}),
+			AllowCredentials: corsAllowCredentials,
+			MaxAge:           corsMaxAge,
+		},
 		Database: DatabaseConfig{
 			Driver:                  getEnv("DB_DRIVER", "mysql"),
 			DSN:                     getEnv("DB_DSN", ""),
@@ -145,6 +170,26 @@ func getEnv(key string, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func getEnvCSV(key string, fallback []string) []string {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+
+	parts := strings.Split(value, ",")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			values = append(values, trimmed)
+		}
+	}
+	if len(values) == 0 {
+		return fallback
+	}
+	return values
 }
 
 func getEnvInt(key string, fallback int) (int, error) {

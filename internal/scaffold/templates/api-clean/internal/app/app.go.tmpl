@@ -15,6 +15,7 @@ import (
 	"{{ .ModulePath }}/internal/observability"
 {{- end }}
 	httpinterface "{{ .ModulePath }}/internal/interfaces/http"
+	httpmiddleware "{{ .ModulePath }}/internal/interfaces/http/middleware"
 	"{{ .ModulePath }}/internal/logging"
 )
 
@@ -52,10 +53,24 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 		TraceHTTP:    cfg.Observability.Enabled,
 		ServiceName:  cfg.Observability.ServiceName,
 		MaxBodyBytes: cfg.HTTP.MaxBodyBytes,
+		CORS: httpmiddleware.CORSOptions{
+			AllowedOrigins:   cfg.CORS.AllowedOrigins,
+			AllowedMethods:   cfg.CORS.AllowedMethods,
+			AllowedHeaders:   cfg.CORS.AllowedHeaders,
+			AllowCredentials: cfg.CORS.AllowCredentials,
+			MaxAge:           cfg.CORS.MaxAge,
+		},
 	})
 {{- else }}
 	router := httpinterface.NewRouter(httpinterface.RouterOptions{
 		MaxBodyBytes: cfg.HTTP.MaxBodyBytes,
+		CORS: httpmiddleware.CORSOptions{
+			AllowedOrigins:   cfg.CORS.AllowedOrigins,
+			AllowedMethods:   cfg.CORS.AllowedMethods,
+			AllowedHeaders:   cfg.CORS.AllowedHeaders,
+			AllowCredentials: cfg.CORS.AllowCredentials,
+			MaxAge:           cfg.CORS.MaxAge,
+		},
 	})
 {{- end }}
 

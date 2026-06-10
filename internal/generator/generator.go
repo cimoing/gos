@@ -1,8 +1,8 @@
 package generator
 
 import (
-	"github.com/jake/gola/internal/filesystem"
-	"github.com/jake/gola/internal/template"
+	"github.com/cimoing/gos/internal/filesystem"
+	"github.com/cimoing/gos/internal/template"
 )
 
 type Engine struct {

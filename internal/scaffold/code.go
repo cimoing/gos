@@ -11,9 +11,9 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/jake/gola/internal/filesystem"
-	"github.com/jake/gola/internal/generator"
-	"github.com/jake/gola/internal/naming"
+	"github.com/cimoing/gos/internal/filesystem"
+	"github.com/cimoing/gos/internal/generator"
+	"github.com/cimoing/gos/internal/naming"
 )
 
 type CodeGenerator struct {
@@ -1259,6 +1259,8 @@ func registerHandlerInOpenAPI(root string, data handlerTemplateData) ([]byte, bo
 	snippet := fmt.Sprintf(`
   %s:
     get:
+      tags:
+        - %ss
       summary: List %ss
       operationId: list%ss
       responses:
@@ -1267,8 +1269,18 @@ func registerHandlerInOpenAPI(root string, data handlerTemplateData) ([]byte, bo
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SuccessResponse"
-`, data.RoutePath, data.TypeName, data.TypeName, data.TypeName)
+                $ref: "#/components/schemas/ListResponse"
+              examples:
+                success:
+                  value:
+                    code: OK
+                    message: success
+                    data: []
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+`, data.RoutePath, data.TypeName, data.TypeName, data.TypeName, data.TypeName)
 	text = strings.Replace(text, marker, snippet+marker, 1)
 	return []byte(text), true, nil
 }

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jake/gola/internal/generator"
+	"github.com/cimoing/gos/internal/generator"
 )
 
 func TestProjectGeneratorGenerateAPIClean(t *testing.T) {
@@ -62,6 +62,7 @@ func TestProjectGeneratorGenerateAPIClean(t *testing.T) {
 		"internal/interfaces/http/middleware/timeout.go",
 		"internal/interfaces/http/router.go",
 		"internal/logging/logging.go",
+		"internal/logging/logging_test.go",
 		"internal/pkg/apperror/error.go",
 		"internal/pkg/response/response.go",
 		"internal/usecase/user/register.go",
@@ -82,7 +83,7 @@ func TestProjectGeneratorGenerateAPIClean(t *testing.T) {
 	}
 
 	assertFileContains(t, root, "internal/interfaces/http/router.go", "middleware.RequestID()")
-	assertFileContains(t, root, "internal/interfaces/http/router.go", "middleware.CORS(middleware.CORSOptions{})")
+	assertFileContains(t, root, "internal/interfaces/http/router.go", "middleware.CORS(opts.CORS)")
 	assertFileContains(t, root, "internal/interfaces/http/router.go", "middleware.Timeout(10*time.Second)")
 	assertFileContains(t, root, "cmd/api/main.go", "github.com/spf13/cobra")
 	assertFileContains(t, root, "cmd/api/main.go", "func newRootCommand(ctx context.Context) *cobra.Command")
@@ -111,8 +112,15 @@ func TestProjectGeneratorGenerateAPIClean(t *testing.T) {
 	assertFileContains(t, root, ".env.example", "HTTP_IDLE_TIMEOUT=60s")
 	assertFileContains(t, root, ".env.example", "HTTP_MAX_HEADER_BYTES=1048576")
 	assertFileContains(t, root, ".env.example", "HTTP_MAX_BODY_BYTES=10485760")
+	assertFileContains(t, root, ".env.example", "CORS_ALLOWED_ORIGINS=*")
+	assertFileContains(t, root, ".env.example", "CORS_ALLOW_CREDENTIALS=false")
+	assertFileContains(t, root, ".env.example", "CORS_MAX_AGE=600")
 	assertFileContains(t, root, "internal/config/config.go", "ReadHeaderTimeout time.Duration")
 	assertFileContains(t, root, "internal/config/config.go", "MaxBodyBytes      int64")
+	assertFileContains(t, root, "internal/config/config.go", "type CORSConfig struct")
+	assertFileContains(t, root, "internal/config/config.go", `getEnvCSV("CORS_ALLOWED_ORIGINS", []string{"*"})`)
+	assertFileContains(t, root, "internal/config/config.go", `corsAllowCredentials, err := getEnvBool("CORS_ALLOW_CREDENTIALS", false)`)
+	assertFileContains(t, root, "internal/config/config.go", `corsMaxAge, err := getEnvInt("CORS_MAX_AGE", 600)`)
 	assertFileContains(t, root, "internal/config/config.go", `httpReadTimeout, err := getEnvDuration("HTTP_READ_TIMEOUT", 15*time.Second)`)
 	assertFileContains(t, root, "internal/config/config.go", `httpMaxHeaderBytes, err := getEnvInt("HTTP_MAX_HEADER_BYTES", 1<<20)`)
 	assertFileContains(t, root, "internal/config/config.go", `httpMaxBodyBytes, err := getEnvInt64("HTTP_MAX_BODY_BYTES", 10<<20)`)
@@ -124,13 +132,18 @@ func TestProjectGeneratorGenerateAPIClean(t *testing.T) {
 	assertFileContains(t, root, "internal/config/config.go", `return 0, fmt.Errorf("parse %s as int: %w", key, err)`)
 	assertFileContains(t, root, "internal/logging/logging.go", "func New(cfg config.LogConfig) (*slog.Logger, error)")
 	assertFileContains(t, root, "internal/logging/logging.go", `case "debug":`)
+	assertFileContains(t, root, "internal/logging/logging.go", "ReplaceAttr: redactAttr")
+	assertFileContains(t, root, "internal/logging/logging.go", `return slog.String(attr.Key, "[REDACTED]")`)
+	assertFileContains(t, root, "internal/logging/logging_test.go", "TestLoggerRedactsSensitiveFields")
 	assertFileContains(t, root, "internal/app/app.go", "logging.New(cfg.Log)")
 	assertFileContains(t, root, "internal/app/app.go", "slog.SetDefault(logger)")
 	assertFileContains(t, root, "internal/app/app.go", "ReadHeaderTimeout: cfg.HTTP.ReadHeaderTimeout")
 	assertFileContains(t, root, "internal/app/app.go", "WriteTimeout:      cfg.HTTP.WriteTimeout")
 	assertFileContains(t, root, "internal/app/app.go", "MaxHeaderBytes:    cfg.HTTP.MaxHeaderBytes")
 	assertFileContains(t, root, "internal/app/app.go", "MaxBodyBytes: cfg.HTTP.MaxBodyBytes")
+	assertFileContains(t, root, "internal/app/app.go", "AllowedOrigins:   cfg.CORS.AllowedOrigins")
 	assertFileContains(t, root, "internal/interfaces/http/router.go", "MaxBodyBytes int64")
+	assertFileContains(t, root, "internal/interfaces/http/router.go", "CORS         middleware.CORSOptions")
 	assertFileContains(t, root, "internal/interfaces/http/router.go", "http.MaxBytesHandler(handler, opts.MaxBodyBytes)")
 	assertFileContains(t, root, "cmd/api/main.go", "func configureLogging() error")
 	assertFileContains(t, root, "cmd/api/main.go", "PersistentPreRunE")
@@ -177,9 +190,15 @@ func TestProjectGeneratorGenerateAPIClean(t *testing.T) {
 	assertFileContains(t, root, "internal/infrastructure/database/transaction.go", "ROLLBACK TO SAVEPOINT ")
 	assertFileContains(t, root, "internal/infrastructure/database/transaction.go", "RELEASE SAVEPOINT ")
 	assertFileContains(t, root, "internal/interfaces/http/middleware/cors.go", "func CORS(options CORSOptions) Middleware")
+	assertFileContains(t, root, "internal/interfaces/http/middleware/recover.go", `"panic_type"`)
 	assertFileContains(t, root, "internal/interfaces/http/middleware/middleware_test.go", "TestCORSHandlesPreflight")
 	assertFileContains(t, root, "api/openapi.yaml", "openapi: 3.0.3")
 	assertFileContains(t, root, "api/openapi.yaml", "/healthz:")
+	assertFileContains(t, root, "api/openapi.yaml", "responses:")
+	assertFileContains(t, root, "api/openapi.yaml", "BadRequest:")
+	assertFileContains(t, root, "api/openapi.yaml", "InternalServerError:")
+	assertFileContains(t, root, "api/openapi.yaml", "ListResponse:")
+	assertFileContains(t, root, "api/openapi.yaml", "examples:")
 }
 
 func TestProjectGeneratorGenerateAPICleanWithOpenTelemetry(t *testing.T) {
@@ -245,6 +264,7 @@ func TestProjectGeneratorGenerateAPIMinimal(t *testing.T) {
 		"internal/interfaces/http/router.go",
 		"internal/interfaces/http/router_test.go",
 		"internal/logging/logging.go",
+		"internal/logging/logging_test.go",
 		"internal/worker/worker.go",
 		"internal/worker/worker_test.go",
 	}
@@ -289,6 +309,8 @@ func TestProjectGeneratorGenerateAPIMinimal(t *testing.T) {
 	assertFileContains(t, root, "cmd/api/main.go", "func configureLogging() error")
 	assertFileContains(t, root, "cmd/api/main.go", "PersistentPreRunE")
 	assertFileContains(t, root, "internal/logging/logging.go", `case "debug":`)
+	assertFileContains(t, root, "internal/logging/logging.go", "ReplaceAttr: redactAttr")
+	assertFileContains(t, root, "internal/logging/logging_test.go", "TestLoggerRedactsSensitiveFields")
 	assertFileNotContains(t, root, "internal/logging/logging.go", "trace_id")
 	assertFileContains(t, root, "internal/interfaces/http/router.go", "GET /healthz")
 	assertPathNotExists(t, root, "api")

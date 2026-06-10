@@ -27,7 +27,7 @@ BuildDate
 手动注入示例：
 
 ```bash
-go build -ldflags "-X github.com/jake/gola/internal/command.Version=v0.1.0 -X github.com/jake/gola/internal/command.Commit=abc1234 -X github.com/jake/gola/internal/command.BuildDate=2026-06-09T00:00:00Z" -o bin/gos ./cmd/gos
+go build -ldflags "-X github.com/cimoing/gos/internal/command.Version=v0.1.0 -X github.com/cimoing/gos/internal/command.Commit=abc1234 -X github.com/cimoing/gos/internal/command.BuildDate=2026-06-09T00:00:00Z" -o bin/gos ./cmd/gos
 ```
 
 ## 版本检查

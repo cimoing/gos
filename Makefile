@@ -12,4 +12,4 @@ vet:
 	go vet ./...
 
 build:
-	go build -ldflags "-X github.com/jake/gola/internal/command.Version=$(VERSION) -X github.com/jake/gola/internal/command.Commit=$(COMMIT) -X github.com/jake/gola/internal/command.BuildDate=$(BUILD_DATE)" -o bin/gos ./cmd/gos
+	go build -ldflags "-X github.com/cimoing/gos/internal/command.Version=$(VERSION) -X github.com/cimoing/gos/internal/command.Commit=$(COMMIT) -X github.com/cimoing/gos/internal/command.BuildDate=$(BUILD_DATE)" -o bin/gos ./cmd/gos

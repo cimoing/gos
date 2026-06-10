@@ -8,8 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/jake/gola/internal/generator"
-	"github.com/jake/gola/internal/scaffold"
+	"github.com/cimoing/gos/internal/generator"
+	"github.com/cimoing/gos/internal/scaffold"
 )
 
 func runMakeMigration(ctx context.Context, args []string, stdout io.Writer) error {

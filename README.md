@@ -103,8 +103,10 @@ gos completion <bash|zsh|fish|powershell>
 15. 生成项目 HTTP_MAX_BODY_BYTES 请求体大小限制
 16. gos version 支持版本、commit、构建时间输出
 17. gos completion 支持 bash、zsh、fish、powershell
-18. Dockerfile、Docker Compose
-19. GitHub Actions CI
+18. 安全默认值增强：CORS 配置化、日志敏感字段脱敏、panic 输出边界
+19. OpenAPI 基础深化：复用响应组件、列表响应 schema、错误响应引用和示例
+20. Dockerfile、Docker Compose
+21. GitHub Actions CI
 ```
 
 `api-minimal` 当前包含：

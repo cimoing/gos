@@ -75,6 +75,8 @@
 37. --with-otel 生成 observability.NewHTTPClient/NewHTTPTransport
 38. docs/LOCAL_OBSERVABILITY.md 本地可观测环境示例
 39. api-clean --with-otel 使用 otelsql 支持 database/sql tracing
+40. 生成项目安全默认值增强：CORS 配置化、日志敏感字段脱敏、panic 输出边界
+41. OpenAPI 基础深化：复用响应组件、列表响应 schema、错误响应引用和示例
 ```
 
 仍未完成：
@@ -2015,4 +2017,37 @@ v0.6.x 引入高级能力
 7. docs/OPEN_TELEMETRY.md 补充数据库 tracing 说明
 8. docs/LOCAL_OBSERVABILITY.md 补充本地 DB span 验证说明
 9. docs/OPTIMIZATION_BACKLOG.md 将数据库 tracing 移入已完成优化
+```
+
+### 2026-06-10 安全默认值增强进度
+
+已完成：
+
+```text
+1. api-clean Config 增加 CORSConfig
+2. api-clean 新增 CORS_ALLOWED_ORIGINS、CORS_ALLOWED_METHODS、CORS_ALLOWED_HEADERS、CORS_ALLOW_CREDENTIALS、CORS_MAX_AGE
+3. api-clean RouterOptions 增加 middleware.CORSOptions
+4. app.New 将 cfg.CORS 映射到 HTTP router
+5. Docker Compose 和 .env.example 补充 CORS_* 配置
+6. api-clean/api-minimal logging handler 增加 ReplaceAttr 脱敏
+7. 默认脱敏 password、passwd、secret、token、authorization、api_key、access_key、private_key、credential、dsn 等字段键
+8. api-clean Recover 中间件不再记录 panic 原始值，改为记录 panic_type
+9. api-clean/api-minimal 增加 logging 测试模板，验证敏感字段脱敏
+10. docs/CONFIG_REFERENCE.md、docs/GENERATED_PROJECT_GUIDE.md 和生成项目 README 模板补充安全默认值说明
+11. docs/OPTIMIZATION_BACKLOG.md 将安全默认值增强移入已完成优化
+```
+
+### 2026-06-10 OpenAPI 基础深化进度
+
+已完成：
+
+```text
+1. api-clean 默认 openapi.yaml 增加 components.responses
+2. 新增 BadRequest、NotFound、InternalServerError 可复用响应组件
+3. 新增 ListResponse schema
+4. healthz 响应增加 examples
+5. gos make:handler --openapi 生成 tags
+6. gos make:handler --openapi 的 200 响应引用 ListResponse
+7. gos make:handler --openapi 增加 BadRequest 和 InternalServerError 响应引用
+8. docs/OPTIMIZATION_BACKLOG.md 将 OpenAPI 基础深化移入已完成优化
 ```

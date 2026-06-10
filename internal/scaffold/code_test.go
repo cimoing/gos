@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jake/gola/internal/generator"
+	"github.com/cimoing/gos/internal/generator"
 )
 
 func TestCodeGeneratorGenerateUsecase(t *testing.T) {
@@ -185,8 +185,13 @@ func TestCodeGeneratorGenerateHandlerRegistersOpenAPI(t *testing.T) {
 	openAPIText := string(openAPI)
 	for _, want := range []string{
 		"  /orders:",
+		"tags:",
+		"- Orders",
 		"operationId: listOrders",
-		"$ref: \"#/components/schemas/SuccessResponse\"",
+		"$ref: \"#/components/schemas/ListResponse\"",
+		"$ref: \"#/components/responses/BadRequest\"",
+		"$ref: \"#/components/responses/InternalServerError\"",
+		"data: []",
 	} {
 		if !strings.Contains(openAPIText, want) {
 			t.Fatalf("openapi missing %q:\n%s", want, openAPIText)

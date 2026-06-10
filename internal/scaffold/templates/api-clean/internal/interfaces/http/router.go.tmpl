@@ -15,6 +15,7 @@ type RouterOptions struct {
 	TraceHTTP    bool
 	ServiceName  string
 	MaxBodyBytes int64
+	CORS         middleware.CORSOptions
 }
 
 func NewRouter(options ...RouterOptions) http.Handler {
@@ -34,7 +35,7 @@ func NewRouter(options ...RouterOptions) http.Handler {
 		mux,
 		middleware.RequestID(),
 		middleware.Recover(),
-		middleware.CORS(middleware.CORSOptions{}),
+		middleware.CORS(opts.CORS),
 		middleware.AccessLog(),
 		middleware.Timeout(10*time.Second),
 	)

@@ -143,6 +143,11 @@ HTTP_WRITE_TIMEOUT
 HTTP_IDLE_TIMEOUT
 HTTP_MAX_HEADER_BYTES
 HTTP_MAX_BODY_BYTES
+CORS_ALLOWED_ORIGINS
+CORS_ALLOWED_METHODS
+CORS_ALLOWED_HEADERS
+CORS_ALLOW_CREDENTIALS
+CORS_MAX_AGE
 DB_DRIVER
 DB_DSN
 DB_ENABLE_NESTED_TRANSACTION
@@ -168,6 +173,18 @@ HTTP_MAX_BODY_BYTES=10485760
 ```
 
 这些配置会进入 `http.Server` 或 router wrapper，分别控制请求头读取、请求体读取、响应写入、空闲连接保持、最大请求头大小和最大请求体大小。`HTTP_MAX_BODY_BYTES=0` 可关闭请求体大小限制。
+
+CORS 默认配置：
+
+```text
+CORS_ALLOWED_ORIGINS=*
+CORS_ALLOWED_METHODS=GET,POST,PUT,PATCH,DELETE,OPTIONS
+CORS_ALLOWED_HEADERS=Authorization,Content-Type,X-Request-ID
+CORS_ALLOW_CREDENTIALS=false
+CORS_MAX_AGE=600
+```
+
+生产环境建议把 `CORS_ALLOWED_ORIGINS` 设置为明确域名列表。若启用 `CORS_ALLOW_CREDENTIALS=true`，不要使用宽泛来源。
 
 数据库配置：
 
@@ -687,7 +704,7 @@ api/openapi.yaml
 4. API 变更时同步更新 OpenAPI。
 ```
 
-`gos make:handler <module> --openapi` 会追加基础 list path，但复杂请求体、错误响应和 schema 仍应手动完善。
+`gos make:handler <module> --openapi` 会追加基础 list path，并包含 tag、列表成功响应和标准错误响应引用。复杂请求体、领域 schema 和更细的错误码仍应按业务手动完善。
 
 ## 14. 日志与中间件
 
@@ -707,14 +724,14 @@ warning
 error
 ```
 
-使用 `--with-otel` 生成并启用 tracing 时，日志 handler 会从 `context.Context` 中读取当前 span，并自动补充 `trace_id` 和 `span_id` 字段。
+使用 `--with-otel` 生成并启用 tracing 时，日志 handler 会从 `context.Context` 中读取当前 span，并自动补充 `trace_id` 和 `span_id` 字段。生成 logger 默认会对 `password`、`token`、`authorization`、`secret`、`dsn` 等常见敏感字段键做脱敏。
 
 默认中间件：
 
 ```text
 RequestID   生成或透传 X-Request-ID。
-Recover     捕获 panic，避免进程直接崩溃。
-CORS        处理跨域。
+Recover     捕获 panic，避免进程直接崩溃；响应不暴露 panic 内容，日志只记录 panic 类型。
+CORS        处理跨域，支持通过 CORS_* 环境变量配置。
 AccessLog   记录请求方法、路径、耗时、状态。
 Timeout     为请求设置超时。
 ```
@@ -723,7 +740,7 @@ Timeout     为请求设置超时。
 
 ```text
 1. 日志中保留 request_id。
-2. 不记录密码、Token、密钥。
+2. 不记录密码、Token、密钥；确需记录上下文字段时使用结构化字段并依赖 logger 默认脱敏。
 3. Recover 只兜底，不代替错误处理。
 4. Timeout 要结合业务场景调整。
 5. CORS 生产环境不要使用过宽配置。
@@ -788,7 +805,7 @@ go test ./...
 2. internal/usecase/invoice/create.go 注入 Repository 和 TxManager。
 3. internal/usecase/invoice/create_test.go 使用 fake Repository 覆盖成功和失败路径。
 4. internal/interfaces/http/handler/invoice_handler.go 解析请求并调用 Usecase。
-5. api/openapi.yaml 补充 requestBody、schema 和错误响应。
+5. api/openapi.yaml 补充 requestBody、领域 schema 和业务错误码。
 6. migrations/*.up.sql 人工审查字段类型和索引。
 7. 运行 integration test 验证 Repository。
 ```

@@ -27,7 +27,8 @@ func NewWithWriter(cfg config.LogConfig, writer io.Writer) (*slog.Logger, error)
 	}
 
 	var handler slog.Handler = slog.NewJSONHandler(writer, &slog.HandlerOptions{
-		Level: level,
+		Level:       level,
+		ReplaceAttr: redactAttr,
 	})
 {{ if .WithOpenTelemetry }}
 	handler = traceHandler{next: handler}
@@ -49,6 +50,36 @@ func parseLevel(value string) (slog.Level, error) {
 	default:
 		return slog.LevelInfo, fmt.Errorf("unsupported log level %q", value)
 	}
+}
+
+func redactAttr(_ []string, attr slog.Attr) slog.Attr {
+	if isSensitiveKey(attr.Key) {
+		return slog.String(attr.Key, "[REDACTED]")
+	}
+	return attr
+}
+
+func isSensitiveKey(key string) bool {
+	normalized := strings.ToLower(key)
+	sensitiveParts := []string{
+		"password",
+		"passwd",
+		"secret",
+		"token",
+		"authorization",
+		"api_key",
+		"apikey",
+		"access_key",
+		"private_key",
+		"credential",
+		"dsn",
+	}
+	for _, part := range sensitiveParts {
+		if strings.Contains(normalized, part) {
+			return true
+		}
+	}
+	return false
 }
 {{ if .WithOpenTelemetry }}
 type traceHandler struct {
