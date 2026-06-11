@@ -1,4 +1,4 @@
-.PHONY: run serve schedule queue test vet build
+.PHONY: run serve schedule queue migrate-up migrate-down test vet build
 
 run: serve
 
@@ -10,6 +10,12 @@ schedule:
 
 queue:
 	go run ./cmd/api queue
+
+migrate-up:
+	go run ./cmd/api migrate up
+
+migrate-down:
+	go run ./cmd/api migrate down
 
 test:
 	go test ./...

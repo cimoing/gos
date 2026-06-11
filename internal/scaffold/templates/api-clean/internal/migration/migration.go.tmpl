@@ -1,0 +1,98 @@
+package migration
+
+import (
+	"context"
+	"fmt"
+	"io"
+
+	"{{ .ModulePath }}/internal/config"
+	"{{ .ModulePath }}/internal/infrastructure/database"
+)
+
+type Options struct {
+	Dir   string
+	Table string
+	Steps int
+	All   bool
+}
+
+func Run(ctx context.Context, cfg config.DatabaseConfig, opts Options, action string, stdout io.Writer) error {
+	if opts.Dir == "" {
+		opts.Dir = "migrations"
+	}
+	if opts.Table == "" {
+		opts.Table = DefaultTable
+	}
+	if opts.Steps == 0 {
+		opts.Steps = 1
+	}
+	if opts.Steps < 0 {
+		return fmt.Errorf("migration steps must be greater than 0")
+	}
+	if cfg.DSN == "" {
+		return fmt.Errorf("database DSN is required: set DB_DSN or pass --dsn")
+	}
+
+	db, err := database.Open(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	if db == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	defer db.Close()
+
+	store, err := NewSQLStore(db, opts.Table)
+	if err != nil {
+		return err
+	}
+	runner := &Runner{
+		Dir:      opts.Dir,
+		Store:    store,
+		Executor: NewSQLExecutor(db),
+	}
+
+	switch action {
+	case "up":
+		result, err := runner.Up(ctx)
+		if err != nil {
+			return err
+		}
+		printUpResult(stdout, result)
+	case "down":
+		steps := opts.Steps
+		if opts.All {
+			steps = 0
+		}
+		result, err := runner.Down(ctx, steps)
+		if err != nil {
+			return err
+		}
+		printDownResult(stdout, result)
+	default:
+		return fmt.Errorf("unsupported migrate action %q (supported: up, down)", action)
+	}
+	return nil
+}
+
+func printUpResult(stdout io.Writer, result *Result) {
+	if len(result.Applied) == 0 {
+		fmt.Fprintln(stdout, "no migrations to apply")
+		return
+	}
+	fmt.Fprintln(stdout, "applied migrations:")
+	for _, item := range result.Applied {
+		fmt.Fprintf(stdout, "  up %s_%s\n", item.Version, item.Name)
+	}
+}
+
+func printDownResult(stdout io.Writer, result *Result) {
+	if len(result.RolledBack) == 0 {
+		fmt.Fprintln(stdout, "no migrations to roll back")
+		return
+	}
+	fmt.Fprintln(stdout, "rolled back migrations:")
+	for _, item := range result.RolledBack {
+		fmt.Fprintf(stdout, "  down %s_%s\n", item.Version, item.Name)
+	}
+}

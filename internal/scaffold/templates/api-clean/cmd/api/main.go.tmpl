@@ -12,6 +12,7 @@ import (
 	"{{ .ModulePath }}/internal/app"
 	"{{ .ModulePath }}/internal/config"
 	"{{ .ModulePath }}/internal/logging"
+	appmigration "{{ .ModulePath }}/internal/migration"
 	"{{ .ModulePath }}/internal/worker"
 	"github.com/spf13/cobra"
 	// gos:command-imports
@@ -42,6 +43,7 @@ func newRootCommand(ctx context.Context) *cobra.Command {
 	rootCmd.AddCommand(newServeCommand())
 	rootCmd.AddCommand(newScheduleCommand())
 	rootCmd.AddCommand(newQueueCommand())
+	rootCmd.AddCommand(newMigrateCommand())
 	// gos:commands
 
 	return rootCmd
@@ -91,6 +93,42 @@ func newQueueCommand() *cobra.Command {
 			return runQueue(cmd.Context())
 		},
 	}
+}
+
+func newMigrateCommand() *cobra.Command {
+	opts := appmigration.Options{
+		Dir:   "migrations",
+		Table: appmigration.DefaultTable,
+		Steps: 1,
+	}
+	var dsn string
+	var driver string
+
+	cmd := &cobra.Command{
+		Use:   "migrate <up|down>",
+		Short: "Run database migrations",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := config.Load()
+			if err != nil {
+				return err
+			}
+			if dsn != "" {
+				cfg.Database.DSN = dsn
+			}
+			if driver != "" {
+				cfg.Database.Driver = driver
+			}
+			return appmigration.Run(cmd.Context(), cfg.Database, opts, args[0], cmd.OutOrStdout())
+		},
+	}
+	cmd.Flags().StringVar(&opts.Dir, "dir", opts.Dir, "migration directory")
+	cmd.Flags().StringVar(&dsn, "dsn", "", "database DSN, defaults to DB_DSN")
+	cmd.Flags().StringVar(&driver, "driver", "", "database/sql driver, defaults to DB_DRIVER")
+	cmd.Flags().StringVar(&opts.Table, "table", opts.Table, "migration record table")
+	cmd.Flags().IntVar(&opts.Steps, "steps", opts.Steps, "number of migrations to roll back with down")
+	cmd.Flags().BoolVar(&opts.All, "all", false, "roll back all applied migrations with down")
+	return cmd
 }
 
 func runServe(ctx context.Context) error {

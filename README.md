@@ -1589,9 +1589,11 @@ make migrate-down
 或：
 
 ```bash
-gos migrate up
-gos migrate down
+go run ./cmd/api migrate up
+go run ./cmd/api migrate down
 ```
+
+生成项目内置的 `migrate` 命令默认使用 `migrations` 目录和 `DB_DSN` 环境变量，执行前会自动创建 `schema_migrations` 迁移记录表。`up` 只执行未记录的版本，`down` 默认回滚最近 1 个版本，可通过 `--steps=N` 或 `--all` 控制回滚范围。
 
 ---
 
@@ -2176,10 +2178,10 @@ build:
 	go build -o bin/api ./cmd/api
 
 migrate-up:
-	migrate -path migrations -database "$$DB_DSN" up
+	go run ./cmd/api migrate up --dsn "$$DB_DSN"
 
 migrate-down:
-	migrate -path migrations -database "$$DB_DSN" down
+	go run ./cmd/api migrate down --dsn "$$DB_DSN"
 
 docker-up:
 	docker compose -f deployments/docker/docker-compose.yml up -d

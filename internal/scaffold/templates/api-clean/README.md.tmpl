@@ -349,7 +349,14 @@ Or generate a create-table migration with a repository:
 gos make:repository invoice --fields=number:string,total:int64 --with-migration
 ```
 
-Review generated SQL before production use. The project provides SQL files but does not force a specific migration runner.
+Review generated SQL before production use. Apply pending migrations from this generated project:
+
+```bash
+go run ./cmd/api migrate up
+go run ./cmd/api migrate down --steps=1
+```
+
+The migrate command creates `schema_migrations` automatically, runs only unapplied `.up.sql` files, and rolls back applied versions with matching `.down.sql` files.
 
 ## {{ if .WithOpenTelemetry }}15{{ else }}14{{ end }}. Tests
 

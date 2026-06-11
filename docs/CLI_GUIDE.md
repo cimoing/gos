@@ -354,11 +354,41 @@ migrations/<timestamp>_create_users_table.down.sql
 ```text
 1. up.sql 只写正向变更。
 2. down.sql 写可回滚变更。
-3. 生产环境迁移工具由团队自行选择，例如 golang-migrate。
+3. 执行迁移使用生成项目内置的 `go run ./cmd/api migrate up` 和 `go run ./cmd/api migrate down`。
 4. 不要把不可逆的数据修复伪装成普通结构迁移。
 ```
 
-## 10. make:test
+## 10. 生成项目内 migrate
+
+执行正向迁移：
+
+```bash
+DB_DSN="user:pass@tcp(127.0.0.1:3306)/app?parseTime=true" go run ./cmd/api migrate up
+```
+
+回滚最近 1 个迁移：
+
+```bash
+go run ./cmd/api migrate down --dsn="user:pass@tcp(127.0.0.1:3306)/app?parseTime=true"
+```
+
+回滚多个迁移：
+
+```bash
+go run ./cmd/api migrate down --steps=3
+go run ./cmd/api migrate down --all
+```
+
+说明：
+
+```text
+1. 执行前会自动创建 schema_migrations 记录表。
+2. up 只执行记录表中不存在的版本。
+3. down 按已执行版本倒序查找 .down.sql 并删除对应记录。
+4. 可通过 --table=<name> 自定义迁移记录表名。
+```
+
+## 11. make:test
 
 单独补测试骨架：
 
@@ -376,7 +406,7 @@ gos make:test repository order
 3. 只需要测试模板，不需要重新生成主代码。
 ```
 
-## 11. make:command
+## 12. make:command
 
 `make:command` 生成可从 `cmd/api` 执行的 Cobra 命令脚本。
 
@@ -414,7 +444,7 @@ queue       启动队列消费 worker，默认通过 internal/worker.QueueWorker
 3. 生成命令默认返回 *cobra.Command，只包含 context 检查和日志，占位业务逻辑应手动补充。
 ```
 
-## 12. version
+## 13. version
 
 查看当前 `gos` 版本信息：
 
@@ -436,7 +466,7 @@ built <build-date>
 go build -ldflags "-X github.com/cimoing/gos/internal/command.Version=v0.1.0 -X github.com/cimoing/gos/internal/command.Commit=abc1234 -X github.com/cimoing/gos/internal/command.BuildDate=2026-06-09T00:00:00Z" -o bin/gos ./cmd/gos
 ```
 
-## 13. completion
+## 14. completion
 
 生成 shell completion：
 
@@ -463,7 +493,7 @@ gos completion powershell > gos.ps1
 
 发布流程建议见 `docs/RELEASE.md`。
 
-## 14. dry-run、force 与冲突处理
+## 15. dry-run、force 与冲突处理
 
 `--dry-run` 不写入磁盘，只展示计划生成的文件：
 
@@ -486,7 +516,7 @@ gos make:handler invoice --force
 4. 生成代码可以自由修改，后续再次生成前先确认差异。
 ```
 
-## 15. 推荐开发流程
+## 16. 推荐开发流程
 
 新增一个业务能力时，推荐顺序：
 
@@ -513,7 +543,7 @@ gos make:handler invoice --force
 4. 按业务补充 Repository 方法。
 ```
 
-## 16. Docker 与集成测试
+## 17. Docker 与集成测试
 
 生成项目包含测试数据库 Compose 文件：
 
@@ -534,7 +564,7 @@ $env:TEST_DATABASE_DSN='root:password@tcp(127.0.0.1:3307)/myapp_test?parseTime=t
 go test -tags=integration ./internal/infrastructure/persistence/mysql
 ```
 
-## 17. 常见问题
+## 18. 常见问题
 
 `make` 不存在：
 
@@ -572,7 +602,7 @@ Repository 集成测试被跳过：
 这是预期行为。设置 TEST_DATABASE_DSN 后再使用 -tags=integration 运行。
 ```
 
-## 18. CLI 最佳实践
+## 19. CLI 最佳实践
 
 ```text
 1. 生成器用于启动代码，不用于长期覆盖业务代码。

@@ -72,6 +72,10 @@ func TestProjectGeneratorGenerateAPIClean(t *testing.T) {
 		"internal/interfaces/http/router.go",
 		"internal/logging/logging.go",
 		"internal/logging/logging_test.go",
+		"internal/migration/files.go",
+		"internal/migration/migration.go",
+		"internal/migration/runner.go",
+		"internal/migration/sql.go",
 		"internal/pkg/apperror/error.go",
 		"internal/pkg/response/response.go",
 		"internal/usecase/user/register.go",
@@ -99,6 +103,9 @@ func TestProjectGeneratorGenerateAPIClean(t *testing.T) {
 	assertFileContains(t, root, "cmd/api/main.go", "rootCmd.AddCommand(newServeCommand())")
 	assertFileContains(t, root, "cmd/api/main.go", "rootCmd.AddCommand(newScheduleCommand())")
 	assertFileContains(t, root, "cmd/api/main.go", "rootCmd.AddCommand(newQueueCommand())")
+	assertFileContains(t, root, "cmd/api/main.go", "rootCmd.AddCommand(newMigrateCommand())")
+	assertFileContains(t, root, "cmd/api/main.go", `Use:   "migrate <up|down>"`)
+	assertFileContains(t, root, "cmd/api/main.go", "appmigration.Run(cmd.Context(), cfg.Database, opts, args[0], cmd.OutOrStdout())")
 	assertFileContains(t, root, "cmd/api/main.go", "gos:command-imports")
 	assertFileContains(t, root, "cmd/api/main.go", "gos:commands")
 	assertFileContains(t, root, "cmd/api/main.go", "worker.NewScheduler")
@@ -210,6 +217,11 @@ func TestProjectGeneratorGenerateAPIClean(t *testing.T) {
 	assertFileContains(t, root, "internal/infrastructure/database/database_test.go", "TestTxManagerRejectsMissingDatabase")
 	assertFileContains(t, root, "internal/infrastructure/database/database_test.go", "TestNewTxManagerStoresOptions")
 	assertFileContains(t, root, "internal/infrastructure/database/mysql.go", `_ "github.com/go-sql-driver/mysql"`)
+	assertFileContains(t, root, "internal/migration/sql.go", `const DefaultTable = "schema_migrations"`)
+	assertFileContains(t, root, "internal/migration/sql.go", "CREATE TABLE IF NOT EXISTS")
+	assertFileContains(t, root, "internal/migration/migration.go", "database DSN is required")
+	assertFileContains(t, root, "internal/migration/runner.go", "func (r *Runner) Up")
+	assertFileContains(t, root, "internal/migration/runner.go", "func (r *Runner) Down")
 	assertFileContains(t, root, "internal/infrastructure/database/transaction.go", "func (m *TxManager) WithinTx")
 	assertFileContains(t, root, "internal/infrastructure/database/transaction.go", "func ExecutorFromContext")
 	assertFileContains(t, root, "internal/infrastructure/database/transaction.go", "SAVEPOINT ")

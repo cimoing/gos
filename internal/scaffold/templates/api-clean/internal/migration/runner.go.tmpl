@@ -1,0 +1,125 @@
+package migration
+
+import (
+	"context"
+	"fmt"
+)
+
+type AppliedMigration struct {
+	Version string
+	Name    string
+}
+
+type Store interface {
+	Ensure(ctx context.Context) error
+	Applied(ctx context.Context) (map[string]AppliedMigration, error)
+	Latest(ctx context.Context, limit int) ([]AppliedMigration, error)
+	Insert(ctx context.Context, migration Migration) error
+	Delete(ctx context.Context, version string) error
+}
+
+type Executor interface {
+	Execute(ctx context.Context, statements []string) error
+}
+
+type Runner struct {
+	Dir      string
+	Store    Store
+	Executor Executor
+}
+
+type Result struct {
+	Applied    []Migration
+	RolledBack []Migration
+}
+
+func (r *Runner) Up(ctx context.Context) (*Result, error) {
+	if err := r.validate(); err != nil {
+		return nil, err
+	}
+	if err := r.Store.Ensure(ctx); err != nil {
+		return nil, err
+	}
+
+	files, err := Discover(r.Dir)
+	if err != nil {
+		return nil, err
+	}
+	applied, err := r.Store.Applied(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	result := &Result{}
+	for _, migration := range files.Up {
+		if _, exists := applied[migration.Version]; exists {
+			continue
+		}
+
+		statements, err := ReadStatements(migration.Path)
+		if err != nil {
+			return nil, err
+		}
+		if err := r.Executor.Execute(ctx, statements); err != nil {
+			return nil, fmt.Errorf("apply migration %s: %w", migration.Version, err)
+		}
+		if err := r.Store.Insert(ctx, migration); err != nil {
+			return nil, fmt.Errorf("record migration %s: %w", migration.Version, err)
+		}
+		result.Applied = append(result.Applied, migration)
+	}
+	return result, nil
+}
+
+func (r *Runner) Down(ctx context.Context, steps int) (*Result, error) {
+	if err := r.validate(); err != nil {
+		return nil, err
+	}
+	if err := r.Store.Ensure(ctx); err != nil {
+		return nil, err
+	}
+
+	files, err := Discover(r.Dir)
+	if err != nil {
+		return nil, err
+	}
+	downByVersion := files.DownByVersion()
+	applied, err := r.Store.Latest(ctx, steps)
+	if err != nil {
+		return nil, err
+	}
+
+	result := &Result{}
+	for _, record := range applied {
+		migration, exists := downByVersion[record.Version]
+		if !exists {
+			return nil, fmt.Errorf("missing down migration for version %s", record.Version)
+		}
+
+		statements, err := ReadStatements(migration.Path)
+		if err != nil {
+			return nil, err
+		}
+		if err := r.Executor.Execute(ctx, statements); err != nil {
+			return nil, fmt.Errorf("rollback migration %s: %w", migration.Version, err)
+		}
+		if err := r.Store.Delete(ctx, migration.Version); err != nil {
+			return nil, fmt.Errorf("delete migration record %s: %w", migration.Version, err)
+		}
+		result.RolledBack = append(result.RolledBack, migration)
+	}
+	return result, nil
+}
+
+func (r *Runner) validate() error {
+	if r.Dir == "" {
+		return fmt.Errorf("migration dir is required")
+	}
+	if r.Store == nil {
+		return fmt.Errorf("migration store is required")
+	}
+	if r.Executor == nil {
+		return fmt.Errorf("migration executor is required")
+	}
+	return nil
+}

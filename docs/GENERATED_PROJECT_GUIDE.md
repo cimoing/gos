@@ -687,7 +687,7 @@ gos make:repository invoice --fields=number:string,total:int64 --with-migration
 ```text
 1. 生成迁移文件。
 2. 人工审查 SQL 类型、索引、默认值。
-3. 在本地测试库执行。
+3. 使用 `go run ./cmd/api migrate up` 在本地测试库执行。
 4. 运行 Repository integration test。
 5. 再提交代码。
 ```
@@ -695,7 +695,8 @@ gos make:repository invoice --fields=number:string,total:int64 --with-migration
 注意：
 
 ```text
-脚手架生成迁移文件，但不强制绑定具体迁移工具。团队可以选择 golang-migrate、Atlas 或内部发布系统。
+生成项目内置的 `migrate up/down` 会在执行前自动创建 schema_migrations 记录表。
+up 只执行未记录的版本，down 默认回滚最近 1 个版本，可用 --steps 或 --all 调整。
 ```
 
 ## 12. 测试体系

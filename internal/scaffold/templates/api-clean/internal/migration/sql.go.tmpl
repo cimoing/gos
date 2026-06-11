@@ -1,0 +1,117 @@
+package migration
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"regexp"
+	"strings"
+)
+
+const DefaultTable = "schema_migrations"
+
+var sqlIdentifierPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+type SQLStore struct {
+	db    *sql.DB
+	table string
+}
+
+func NewSQLStore(db *sql.DB, table string) (*SQLStore, error) {
+	table = strings.TrimSpace(table)
+	if table == "" {
+		table = DefaultTable
+	}
+	if !sqlIdentifierPattern.MatchString(table) {
+		return nil, fmt.Errorf("invalid migration table name %q", table)
+	}
+	return &SQLStore{
+		db:    db,
+		table: table,
+	}, nil
+}
+
+func (s *SQLStore) Ensure(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx, fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+    version VARCHAR(255) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+)`, s.table))
+	return err
+}
+
+func (s *SQLStore) Applied(ctx context.Context) (map[string]AppliedMigration, error) {
+	rows, err := s.db.QueryContext(ctx, fmt.Sprintf("SELECT version, name FROM %s", s.table))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	applied := map[string]AppliedMigration{}
+	for rows.Next() {
+		var migration AppliedMigration
+		if err := rows.Scan(&migration.Version, &migration.Name); err != nil {
+			return nil, err
+		}
+		applied[migration.Version] = migration
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return applied, nil
+}
+
+func (s *SQLStore) Latest(ctx context.Context, limit int) ([]AppliedMigration, error) {
+	query := fmt.Sprintf("SELECT version, name FROM %s ORDER BY version DESC", s.table)
+	var args []any
+	if limit > 0 {
+		query += " LIMIT ?"
+		args = append(args, limit)
+	}
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var migrations []AppliedMigration
+	for rows.Next() {
+		var migration AppliedMigration
+		if err := rows.Scan(&migration.Version, &migration.Name); err != nil {
+			return nil, err
+		}
+		migrations = append(migrations, migration)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return migrations, nil
+}
+
+func (s *SQLStore) Insert(ctx context.Context, migration Migration) error {
+	_, err := s.db.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (version, name) VALUES (?, ?)", s.table), migration.Version, migration.Name)
+	return err
+}
+
+func (s *SQLStore) Delete(ctx context.Context, version string) error {
+	_, err := s.db.ExecContext(ctx, fmt.Sprintf("DELETE FROM %s WHERE version = ?", s.table), version)
+	return err
+}
+
+type SQLExecutor struct {
+	db *sql.DB
+}
+
+func NewSQLExecutor(db *sql.DB) *SQLExecutor {
+	return &SQLExecutor{db: db}
+}
+
+func (e *SQLExecutor) Execute(ctx context.Context, statements []string) error {
+	for _, statement := range statements {
+		if _, err := e.db.ExecContext(ctx, statement); err != nil {
+			return err
+		}
+	}
+	return nil
+}

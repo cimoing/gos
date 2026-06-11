@@ -1,0 +1,177 @@
+package migration
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"sort"
+	"strings"
+	"unicode"
+)
+
+type Direction string
+
+const (
+	DirectionUp   Direction = "up"
+	DirectionDown Direction = "down"
+)
+
+type Migration struct {
+	Version   string
+	Name      string
+	Direction Direction
+	Path      string
+}
+
+type Files struct {
+	Up   []Migration
+	Down []Migration
+}
+
+var migrationFilePattern = regexp.MustCompile(`^([0-9]+)_(.+)\.(up|down)\.sql$`)
+
+func Discover(dir string) (*Files, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	files := &Files{}
+	seen := map[string]string{}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		migration, ok := parseMigrationFileName(entry.Name())
+		if !ok {
+			continue
+		}
+		migration.Path = filepath.Join(dir, entry.Name())
+
+		seenKey := string(migration.Direction) + ":" + migration.Version
+		if previous, exists := seen[seenKey]; exists {
+			return nil, fmt.Errorf("duplicate %s migration version %s: %s and %s", migration.Direction, migration.Version, previous, entry.Name())
+		}
+		seen[seenKey] = entry.Name()
+
+		switch migration.Direction {
+		case DirectionUp:
+			files.Up = append(files.Up, migration)
+		case DirectionDown:
+			files.Down = append(files.Down, migration)
+		}
+	}
+
+	sort.Slice(files.Up, func(i, j int) bool {
+		return files.Up[i].Version < files.Up[j].Version
+	})
+	sort.Slice(files.Down, func(i, j int) bool {
+		return files.Down[i].Version > files.Down[j].Version
+	})
+	return files, nil
+}
+
+func (f *Files) DownByVersion() map[string]Migration {
+	byVersion := make(map[string]Migration, len(f.Down))
+	for _, migration := range f.Down {
+		byVersion[migration.Version] = migration
+	}
+	return byVersion
+}
+
+func parseMigrationFileName(name string) (Migration, bool) {
+	matches := migrationFilePattern.FindStringSubmatch(name)
+	if matches == nil {
+		return Migration{}, false
+	}
+	return Migration{
+		Version:   matches[1],
+		Name:      matches[2],
+		Direction: Direction(matches[3]),
+	}, true
+}
+
+func ReadStatements(path string) ([]string, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return SplitSQLStatements(string(content)), nil
+}
+
+func SplitSQLStatements(script string) []string {
+	var statements []string
+	var builder strings.Builder
+	var quote byte
+	escaped := false
+
+	for i := 0; i < len(script); i++ {
+		ch := script[i]
+		if quote != 0 {
+			builder.WriteByte(ch)
+			if escaped {
+				escaped = false
+				continue
+			}
+			if ch == '\\' && quote != '`' {
+				escaped = true
+				continue
+			}
+			if ch == quote {
+				quote = 0
+			}
+			continue
+		}
+
+		switch {
+		case ch == '\'' || ch == '"' || ch == '`':
+			quote = ch
+			builder.WriteByte(ch)
+		case ch == '-' && i+1 < len(script) && script[i+1] == '-' && (i+2 == len(script) || unicode.IsSpace(rune(script[i+2]))):
+			i = skipLineComment(script, i+2)
+			builder.WriteByte('\n')
+		case ch == '#':
+			i = skipLineComment(script, i+1)
+			builder.WriteByte('\n')
+		case ch == '/' && i+1 < len(script) && script[i+1] == '*':
+			i = skipBlockComment(script, i+2)
+			builder.WriteByte(' ')
+		case ch == ';':
+			appendStatement(&statements, builder.String())
+			builder.Reset()
+		default:
+			builder.WriteByte(ch)
+		}
+	}
+
+	appendStatement(&statements, builder.String())
+	return statements
+}
+
+func appendStatement(statements *[]string, statement string) {
+	statement = strings.TrimSpace(statement)
+	if statement == "" {
+		return
+	}
+	*statements = append(*statements, statement)
+}
+
+func skipLineComment(script string, start int) int {
+	for i := start; i < len(script); i++ {
+		if script[i] == '\n' {
+			return i
+		}
+	}
+	return len(script)
+}
+
+func skipBlockComment(script string, start int) int {
+	for i := start; i+1 < len(script); i++ {
+		if script[i] == '*' && script[i+1] == '/' {
+			return i + 1
+		}
+	}
+	return len(script)
+}
