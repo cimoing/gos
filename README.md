@@ -104,7 +104,7 @@ gos completion <bash|zsh|fish|powershell>
 16. gos version 支持版本、commit、构建时间输出
 17. gos completion 支持 bash、zsh、fish、powershell
 18. 安全默认值增强：CORS 配置化、日志敏感字段脱敏、panic 输出边界
-19. OpenAPI 基础深化：复用响应组件、列表响应 schema、错误响应引用和示例
+19. OpenAPI 基础深化：复用响应组件、列表/创建接口契约、requestBody、错误响应引用和示例
 20. 缓存接口：memory、file、memcache、redis 后端
 21. Redis 分布式锁：SetNX 获取锁，Lua token 校验释放和续期
 22. Dockerfile、Docker Compose
@@ -1954,6 +1954,8 @@ internal/interfaces/http/handler/user_handler_test.go
 internal/interfaces/http/router.go（使用 --register 时更新）
 api/openapi.yaml（使用 --openapi 时更新）
 ```
+
+`--openapi` 会为标准 `api-clean` 契约追加列表和创建接口，其中创建接口包含 `requestBody` 与 `CreateUserRequest` schema。
 
 ### 26.4 make:repository 命令
 

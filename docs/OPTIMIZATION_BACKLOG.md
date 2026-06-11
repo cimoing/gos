@@ -52,13 +52,16 @@
 
 14. 缓存接口与 Redis 分布式锁
    api-clean 已生成 internal/infrastructure/cache，提供 memory、file、memcache、redis 四种 Store 实现；同时生成 internal/infrastructure/lock，提供基于 Redis SET NX 和 Lua token 校验的分布式锁。配置、Docker Compose、依赖组装和模板测试已同步。
+
+15. OpenAPI requestBody 生成
+   gos make:handler --openapi 已同步生成 list/create path；create path 包含 requestBody、CreateXRequest schema、201 成功示例和标准错误响应引用。生成的 Handler 也已包含 POST 路由、JSON 请求解析和 BadRequest 测试。
 ```
 
 ## 中优先级
 
 ```text
-1. OpenAPI requestBody 与契约校验
-   为 Handler 生成更完整的 requestBody、业务错误码，并评估引入契约校验工具。
+1. OpenAPI 契约校验工具
+   评估引入轻量 OpenAPI 校验工具，在 CI 或测试中验证 api/openapi.yaml 结构和引用。
 ```
 
 ## 低优先级
@@ -77,7 +80,7 @@
 ## 当前建议顺序
 
 ```text
-1. OpenAPI requestBody 与契约校验
+1. OpenAPI 契约校验工具
 2. 更细的安全策略开关
 3. --with-log-file
 ```

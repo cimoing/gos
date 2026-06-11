@@ -1211,6 +1211,7 @@ func Test{{ .TypeName }}UsecaseExecute(t *testing.T) {
 const handlerGoTemplate = `package {{ .PackageName }}
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"{{ .ModulePath }}/internal/pkg/response"
@@ -1219,16 +1220,30 @@ import (
 type {{ .TypeName }}Handler struct {
 }
 
+type Create{{ .TypeName }}Request struct {
+}
+
 func New{{ .TypeName }}Handler() *{{ .TypeName }}Handler {
 	return &{{ .TypeName }}Handler{}
 }
 
 func (h *{{ .TypeName }}Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET {{ .RoutePath }}", h.List)
+	mux.HandleFunc("POST {{ .RoutePath }}", h.Create)
 }
 
 func (h *{{ .TypeName }}Handler) List(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, response.Success([]any{}))
+}
+
+func (h *{{ .TypeName }}Handler) Create(w http.ResponseWriter, r *http.Request) {
+	var input Create{{ .TypeName }}Request
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		response.JSON(w, http.StatusBadRequest, response.Error("BAD_REQUEST", "invalid request"))
+		return
+	}
+
+	response.JSON(w, http.StatusCreated, response.Success(map[string]any{}))
 }
 `
 
@@ -1313,8 +1328,52 @@ func registerHandlerInOpenAPI(root string, data handlerTemplateData) ([]byte, bo
           $ref: "#/components/responses/BadRequest"
         "500":
           $ref: "#/components/responses/InternalServerError"
-`, data.RoutePath, data.TypeName, data.TypeName, data.TypeName, data.TypeName)
+    post:
+      tags:
+        - %ss
+      summary: Create %s
+      operationId: create%s
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Create%sRequest"
+            examples:
+              create:
+                value: {}
+      responses:
+        "201":
+          description: Created %s
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              examples:
+                created:
+                  value:
+                    code: OK
+                    message: success
+                    data: {}
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+`, data.RoutePath, data.TypeName, data.TypeName, data.TypeName, data.TypeName, data.TypeName, data.TypeName, data.TypeName, data.TypeName, data.TypeName)
 	text = strings.Replace(text, marker, snippet+marker, 1)
+
+	schemaMarker := "\n    ErrorResponse:"
+	if !strings.Contains(text, schemaMarker) {
+		return nil, false, fmt.Errorf("OpenAPI file is not in the expected api-clean schema format")
+	}
+	requestSchema := fmt.Sprintf(`
+    Create%sRequest:
+      type: object
+      additionalProperties: true
+`, data.TypeName)
+	if !strings.Contains(text, "\n    Create"+data.TypeName+"Request:\n") {
+		text = strings.Replace(text, schemaMarker, requestSchema+schemaMarker, 1)
+	}
 	return []byte(text), true, nil
 }
 
@@ -1501,6 +1560,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -1528,6 +1588,43 @@ func Test{{ .TypeName }}HandlerList(t *testing.T) {
 	}
 	if body["message"] != "success" {
 		t.Fatalf("expected message success, got %v", body["message"])
+	}
+}
+
+func Test{{ .TypeName }}HandlerCreate(t *testing.T) {
+	handler := New{{ .TypeName }}Handler()
+
+	req := httptest.NewRequest(http.MethodPost, "{{ .RoutePath }}", strings.NewReader("{}"))
+	rec := httptest.NewRecorder()
+
+	handler.Create(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("Content-Type"); got != "application/json" {
+		t.Fatalf("expected content type application/json, got %q", got)
+	}
+
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body["code"] != "OK" {
+		t.Fatalf("expected code OK, got %v", body["code"])
+	}
+}
+
+func Test{{ .TypeName }}HandlerCreateBadRequest(t *testing.T) {
+	handler := New{{ .TypeName }}Handler()
+
+	req := httptest.NewRequest(http.MethodPost, "{{ .RoutePath }}", strings.NewReader("{"))
+	rec := httptest.NewRecorder()
+
+	handler.Create(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", rec.Code)
 	}
 }
 `

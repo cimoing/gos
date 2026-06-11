@@ -747,7 +747,7 @@ api/openapi.yaml
 4. API 变更时同步更新 OpenAPI。
 ```
 
-`gos make:handler <module> --openapi` 会追加基础 list path，并包含 tag、列表成功响应和标准错误响应引用。`gos make:model <module> --openapi` 与 `gos make:repository <module> --openapi` 会根据字段 DSL 向 `components.schemas` 追加实体 schema。复杂请求体和更细的业务错误码仍应按业务手动完善。
+`gos make:handler <module> --openapi` 会追加基础 list/create path，并包含 tag、列表成功响应、创建 requestBody、CreateXRequest schema 和标准错误响应引用。`gos make:model <module> --openapi` 与 `gos make:repository <module> --openapi` 会根据字段 DSL 向 `components.schemas` 追加实体 schema。复杂请求字段和更细的业务错误码仍应按业务手动完善。
 
 ## 14. 日志与中间件
 

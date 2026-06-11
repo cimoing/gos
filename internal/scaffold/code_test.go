@@ -72,6 +72,22 @@ func TestCodeGeneratorGenerateHandler(t *testing.T) {
 			t.Fatalf("expected generated file %s: %v", path, err)
 		}
 	}
+
+	handler, err := os.ReadFile(filepath.Join(root, "internal", "interfaces", "http", "handler", "order_handler.go"))
+	if err != nil {
+		t.Fatalf("ReadFile(handler) error = %v", err)
+	}
+	handlerText := string(handler)
+	for _, want := range []string{
+		`mux.HandleFunc("POST /orders", h.Create)`,
+		"type CreateOrderRequest struct",
+		"func (h *OrderHandler) Create",
+		`response.Error("BAD_REQUEST", "invalid request")`,
+	} {
+		if !strings.Contains(handlerText, want) {
+			t.Fatalf("handler missing %q:\n%s", want, handlerText)
+		}
+	}
 }
 
 func TestCodeGeneratorGenerateHandlerRegistersRouter(t *testing.T) {
@@ -188,10 +204,17 @@ func TestCodeGeneratorGenerateHandlerRegistersOpenAPI(t *testing.T) {
 		"tags:",
 		"- Orders",
 		"operationId: listOrders",
+		"post:",
+		"operationId: createOrder",
+		"requestBody:",
+		"$ref: \"#/components/schemas/CreateOrderRequest\"",
+		"CreateOrderRequest:",
+		"additionalProperties: true",
 		"$ref: \"#/components/schemas/ListResponse\"",
 		"$ref: \"#/components/responses/BadRequest\"",
 		"$ref: \"#/components/responses/InternalServerError\"",
 		"data: []",
+		"data: {}",
 	} {
 		if !strings.Contains(openAPIText, want) {
 			t.Fatalf("openapi missing %q:\n%s", want, openAPIText)
@@ -200,6 +223,8 @@ func TestCodeGeneratorGenerateHandlerRegistersOpenAPI(t *testing.T) {
 	if strings.Index(openAPIText, "  /orders:") > strings.Index(openAPIText, "\ncomponents:") {
 		t.Fatalf("openapi path was not inserted before components:\n%s", openAPIText)
 	}
+
+	runGoCommand(t, root, "test", "./internal/interfaces/http/handler")
 }
 
 func TestCodeGeneratorGenerateHandlerSkipsNonStandardOpenAPIRegistration(t *testing.T) {

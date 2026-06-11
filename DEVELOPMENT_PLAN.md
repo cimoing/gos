@@ -79,6 +79,7 @@
 41. OpenAPI 基础深化：复用响应组件、列表响应 schema、错误响应引用和示例
 42. OpenAPI 领域 schema 生成：make:model/make:repository --openapi 根据字段 DSL 追加 components.schemas
 43. api-clean 缓存接口与 Redis 分布式锁：memory/file/memcache/redis cache Store，Redis Locker
+44. make:handler --openapi 生成 create requestBody 与 CreateXRequest schema
 ```
 
 仍未完成：
@@ -2093,4 +2094,20 @@ v0.6.x 引入高级能力
 13. Docker Compose 增加 Memcache 服务
 14. app/assembly.go 组装 Redis client、Cache Store 和 Locker
 15. docs/CONFIG_REFERENCE.md、docs/GENERATED_PROJECT_GUIDE.md、docs/TEMPLATE_DEPENDENCIES.md、生成项目 README 和 docs/OPTIMIZATION_BACKLOG.md 同步说明
+```
+
+### 2026-06-11 OpenAPI requestBody 生成进度
+
+已完成：
+
+```text
+1. make:handler 默认 Handler 增加 POST <route> Create 方法
+2. 生成 Handler 注册 GET 和 POST 两个路由
+3. Create 方法解析 JSON 请求体，非法 JSON 返回 BAD_REQUEST
+4. Handler 测试模板增加 Create 成功和 BadRequest 测试
+5. make:handler --openapi 的 path 增加 post operation
+6. post operation 增加 requestBody 和 CreateXRequest schema 引用
+7. post operation 增加 201 成功响应示例
+8. api/openapi.yaml components.schemas 自动追加 CreateXRequest
+9. docs/CLI_GUIDE.md、docs/GENERATED_PROJECT_GUIDE.md、生成项目 README、README.md 和 docs/OPTIMIZATION_BACKLOG.md 同步说明
 ```

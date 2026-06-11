@@ -198,7 +198,7 @@ gos make:handler user --register --openapi
 ```text
 1. --register 只在识别 api-clean 标准 router.go 结构时自动更新。
 2. 非标准 router.go 会降级为 skipped，并提示手动注册代码。
-3. --openapi 只在识别标准 api/openapi.yaml 结构时追加 path，并生成 tag、列表成功响应和标准错误响应引用。
+3. --openapi 只在识别标准 api/openapi.yaml 结构时追加 path，并生成 tag、列表/创建响应、创建 requestBody、CreateXRequest schema 和标准错误响应引用。
 4. Handler 层只做协议适配、参数解析、调用 Usecase、响应转换。
 ```
 

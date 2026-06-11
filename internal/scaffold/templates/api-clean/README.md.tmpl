@@ -179,7 +179,7 @@ Recommended flow:
 4. Add handler tests for status codes and response shape.
 ```
 
-`gos make:handler <module> --openapi` can append a list path with tags, a list success response, and standard error response references. `gos make:model <module> --openapi` and `gos make:repository <module> --openapi` can append entity schemas from the field DSL. Complex request bodies and business-specific error codes should still be reviewed manually.
+`gos make:handler <module> --openapi` can append list/create paths with tags, a list success response, a create requestBody, a CreateXRequest schema, and standard error response references. `gos make:model <module> --openapi` and `gos make:repository <module> --openapi` can append entity schemas from the field DSL. Business-specific request fields and error codes should still be reviewed manually.
 
 ## {{ if .WithOpenTelemetry }}9{{ else }}8{{ end }}. HTTP layer
 
